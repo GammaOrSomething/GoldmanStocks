@@ -27,6 +27,8 @@ export const emptyClientStats: ClientStats = {
  *
  * Hours are the planned durations of jobs proven with a photo. A job counts once per local day
  * however many photos it has, so a recurring weekly task done four times counts four times.
+ * They use each task's *current* duration and site, so editing a task changes the hours already
+ * counted for it this month, and deleting one removes them (its photos go with it).
  */
 export function summarizeClients(
   activity: ClientActivity,

@@ -43,9 +43,8 @@ function Clients() {
   const clients = Route.useLoaderData();
   // undefined = closed, null = new client, a client = editing it
   const [editing, setEditing] = useState<Client | null | undefined>();
-  const maxHours = clients.length
-    ? Math.max(...clients.map((c) => c.hoursThisMonth))
-    : 1;
+  // At least 1, so a month with no proven hours yet doesn't divide by zero.
+  const maxHours = Math.max(1, ...clients.map((c) => c.hoursThisMonth));
   const revenue = clients.reduce((s, c) => s + c.monthlyValue, 0);
 
   return (

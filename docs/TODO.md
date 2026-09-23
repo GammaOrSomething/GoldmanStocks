@@ -39,13 +39,7 @@ Applied to the live database on 19 Sep 2026. All five sites read back correct:
 | `p4` | `56.973, 24.115` | `56.9776, 24.1368` | Duntes iela 6, Riga |
 | `p5` | `59.438, 24.79` | `59.4379, 24.7801` | Koidula 14, Tallinn |
 
-The script is idempotent and still in the repo — a dry run now reports "already correct" for all
-five:
-
-```sh
-bun run scripts/fix-site-coordinates.ts            # dry run, prints the before/after
-bun run scripts/fix-site-coordinates.ts --apply    # writes
-```
+The one-off fix script has since been deleted along with the rest of the demo tooling.
 
 **One caveat on `p3`.** House number 12 has no geocode — Nominatim resolves the street but not the
 building — so its pin is street-level, taken from the seed file and corroborated by Nominatim to
@@ -96,8 +90,8 @@ Two limits worth knowing before showing it to anyone, both recorded in HANDOFF.m
 
 - the **Plant** column is blank for every current task (`tasks.plant_id` is null throughout the
   seed data); the site and zone underneath it locate the work instead
-- `clients.hours_this_month` on `/clients` is a static seeded number and does not come from this
-  report, so the two will not agree
+- `/clients` hours are now calculated from the same proof photos (`src/lib/client-stats.ts`), so
+  the two agree
 
 ## 5. ~~Apply migration 0004 — task dates~~ — done
 
@@ -143,8 +137,8 @@ Nothing in the codebase requires pasting a secret to anyone: `.env` is read dire
 
 ## 7a. Live-data corrections and deliberate demo data
 
-**Corrected 19 Sep 2026:** the eight seeded tasks had `plant_id` null, because `scripts/seed.ts`
-dropped the field on insert even though `src/lib/rootline-data.ts` defines it. The code is fixed
+**Corrected 19 Sep 2026:** the eight seeded tasks had `plant_id` null, because the (since deleted)
+seed script dropped the field on insert. The code is fixed
 and the live rows were backfilled from the seed, so the report's **Plant** column now fills in.
 Only `t1789775221396` (created in the app) has no plant, which is correct.
 
@@ -167,9 +161,7 @@ To remove: delete the `task_photos` row and its storage object, delete the `care
 `PATCH /rest/v1/tasks?id=eq.t14  {"status":"planned"}` — its previous photo stays in the report,
 which is correct: a recurring job photographed on two different visits is two rows.
 
-`t13` and `t14` also exist in `src/lib/rootline-data.ts`, so a future `bun run seed` recreates them
-(without the photo). That is intentional — the seed had no weekend work at all, which made the
-weekend columns read as broken.
+The seed script and its mock data are gone, so these rows only exist in the demo database.
 
 ## 8. Nice to have
 
