@@ -8,81 +8,60 @@ each change did, what you need to do by hand, and what comes next. It is updated
 
 ## ▶ Pick up here (next session)
 
-_Written at the end of the 23 Sep 2026 session._
+_Updated in the second 23 Sep 2026 session._
 
 **Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
 
-| Branch                   | Contains      | State                                                                                       |
-| ------------------------ | ------------- | ------------------------------------------------------------------------------------------- |
-| `chore/remove-demo-data` | A1            | done                                                                                        |
-| `chore/remove-dead-code` | A2 + this doc | done                                                                                        |
-| `feat/real-login`        | B             | done, reviewed, fixes in                                                                    |
-| `feat/production-schema` | C             | done, 48 database checks pass; **security review was still running when the session ended** |
-| `feat/cut-over`          | D1, started   | **in progress**: one WIP commit, and the typecheck fails on purpose until D1 is finished    |
+| Branch                   | Contains      | State                                                                |
+| ------------------------ | ------------- | -------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                 |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                 |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                             |
+| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass |
+| `feat/cut-over`          | D1, started   | **in progress**: data layer done; typecheck and unit tests pass      |
 
 **To resume D1** (`git checkout feat/cut-over`):
 
-1. **Fix the security review's findings for C first**, on `feat/production-schema`, then rebase `feat/cut-over` onto it. The review found no way to reach another company's data, no way for a worker to become boss or read money, and no way to link someone else's login. It did find these, most important first:
-   - **M1 — `bump_usage`: the caller chooses the limit** and can invent new kinds. Keep the limits in the database (a `private.usage_limits` table, unknown kinds refused), or make it server-only.
-   - **M2 — faked "proven hours".** `complete_task` trusts the photo time and date it's sent and can be repeated with new photos, so hours can be inflated (the review took one client from 1.5 to 30). Also, `set_task_status` lets a worker undo a proven task.
-     - Limit `p_taken_at` and `p_local_date` to roughly now (the company's local day ±1).
-     - Refuse a second photo for the same task on the same local day.
-     - Refuse completing a one-off task that's already done.
-     - Only a boss may move a `done` task back to planned.
-   - **M3 — `guard_worker_update` checks `auth.jwt()->>'role'`, which fails open if the claim is ever missing.** Deny unless `current_setting('role', true) in ('service_role', 'none')`; the tests still pass with that.
-   - **LM1 — path checks accept `..` and empty file names.** Tighten the `photo_path` / `storage_path` checks and the storage upload policy to a regex: `^<company>/(plants|tasks/<task>)/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$`.
-   - **L1 — a boss can write `companies.plant_seq` and `created_by`,** and an invalid `timezone` breaks `client_stats`. Allow updates only to `name` and `timezone`, and validate the timezone.
-   - **L2 — `assign_plant_code` runs before the row-level security check.** A wrong `company_id` briefly locks another company's row and reveals whether that company exists. Check the company at the top of the trigger.
-   - **L3 — `set_project_crew` bugs:**
-     - A crew with no lead fails (`coalesce(w = p_lead_id, false)`).
-     - Check the site exists first.
-     - Cap the crew size.
-   - **L4 — no length limits on free text** (`species`, `zones`, `offers.body`, …). Add `check (length(...) <= N)` constraints.
-   - **L5 — tidy default grants:**
-     - revoke PUBLIC execute on `private` functions;
-     - revoke truncate, references and trigger from the API roles;
-     - revoke everything from `anon`.
-   - **L6 — "remove access" must clear `workers.user_id`,** not just archive the worker (D2).
-   - **To check on real Supabase (CI):**
-     - that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`;
-     - set `secure_password_change = true` in `config.toml`.
-   - The review's probe scripts are gone once the session's scratch folder is cleaned up. Add a regression check to `supabase/tests/rls.sql` for each fix.
-2. **Done so far in D1:**
-   - `src/lib/supabase/types.ts`, hand-written for the new schema, since generating it needs Docker;
-   - `src/lib/types.ts`: `Plant.code`, and `Worker.email` / `appRole` / `hasLogin` / `invitedAt`;
-   - `src/lib/api/mappers.ts`, rewritten, with tests in `mappers.test.ts` (7 passing).
-3. **Next, in this order.** `bunx tsc --noEmit -p .` lists what still points at the old schema.
-   1. `src/lib/api/{clients,workers,projects,plants,tasks}.ts`:
-      - Fetch `project_workers` and the terms tables, and pass them to the mappers.
-      - Use `client_stats` for the client numbers.
-      - Drop `ids.ts` (the database makes ids and plant codes).
-      - `saveSite` calls `set_project_crew` and upserts `project_terms`; `saveClient` upserts `client_terms`.
-      - Real zod validators in `tasks.ts`.
-      - A worker's status change goes through `set_task_status`.
-      - Order by name, code or date, not by id.
-      - `site` in the app is `zone` in the database; `role` is `job_title`.
-   2. Test fixtures: add `code`, `email`, `appRole`, `hasLogin` in `src/lib/__fixtures__/week.ts` and `planner.test.ts`.
-   3. **Session and roles:**
+1. **Done in D1 so far:**
+   - `src/lib/supabase/types.ts`, hand-written for the new schema, since generating it needs Docker.
+   - `src/lib/types.ts`: `Plant.code`, and `Worker.email` / `appRole` / `hasLogin` / `invitedAt`.
+   - `src/lib/api/mappers.ts`, with tests.
+   - **The data layer** (`src/lib/api/{clients,workers,projects,plants,tasks}.ts`):
+     - client numbers come from `client_stats`;
+     - crews come from `project_workers`, and money from the terms tables;
+     - the database makes ids and plant codes, so `ids.ts` is gone;
+     - task validation and row mapping live in `task-rows.ts`, with tests;
+     - skipping or reopening a task goes through `set_task_status`;
+     - lists are ordered by name, code or date;
+     - a malformed id reads as "not found".
+   - Fixtures carry the new fields. 141 unit tests pass, and the typecheck is clean.
+2. **Next, in this order:**
+   1. **Session and roles:**
       - `getSessionViewer` in `src/lib/api/session.ts` also returns `workerId`, `companyId`, `companyName`, `role` and `name`.
       - Add a boss-only check for office writes, offers, the AI, geocoding and the report.
       - `access.ts` gains three rules: no company → `/onboarding`; a worker on an office page → `/mobile`; `/signup` is public. Tests first.
-   4. **New pages:** `/signup`, `/onboarding` (calls `create_company`), and `/auth/confirm` (a button that calls `verifyOtp`, then goes to the checked `next`).
-   5. **Photos:**
+   2. **New pages:** `/signup`, `/onboarding` (calls `create_company`), and `/auth/confirm` (a button that calls `verifyOtp`, then goes to the checked `next`).
+   3. **Photos:**
       - `src/lib/server/photos.ts`: paths become `<company>/tasks/<task>/…`, and completion calls the `complete_task` function.
       - `plant-photos.ts`: `<company>/plants/<uuid>`, saved as `plants.photo_path`; delete `attachPlantPhoto`.
       - Switch the photo, plant and report functions from the admin key to the user's own session.
       - The weather cache uses the admin client.
       - `bump_usage` limits the AI calls.
-   6. **Worker app:**
+   4. **Worker app:**
       - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
       - Remove the "whose jobs to show" picker.
-      - Language changes go through `update_my_profile`.
+      - Language changes go through `update_my_profile` (the server function `updateMyLanguage` exists).
       - Only bosses see "Full site".
-   7. **Office:**
+   5. **Office:**
       - Remove "Open in worker app" from `/workers`, and show the email and login status.
       - Show `plant.code` instead of the id in `PlantTable`, `LeafletMap` and `PlantDialog`.
-      - A bad id in a URL shows "not found".
-   8. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
+      - A bad id in a URL shows "not found" (the server side already returns null).
+   6. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
+3. **Also still to do:**
+   - **Remove access (D2):** it must clear `workers.user_id`, not just archive the worker.
+   - **Weekly tasks keep their status from week to week.** Once a weekly task is proven, it shows as done in every later week. The app did this before too. The database now limits proof to one per week, so a per-week status is the natural follow-up; decide it in D1's worker-app step.
+   - **Check on real Supabase (CI):** that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`; set `secure_password_change = true` in `config.toml`.
+   - **`bump_usage` needs the user's session.** With the service role it refuses, because there is no company, so call it from `plan.functions.ts` / `outreach.functions.ts` with the user's client.
 4. **Then:** review, update this log, and commit. D2 (invites and password reset) and E follow; see [Next steps](#next-steps).
 
 **Checks to run:**
@@ -295,6 +274,22 @@ Also fixed:
   - the functions above.
 - **Where they ran:** this machine has no Docker, so the checks ran on the local PostgreSQL 17 against a small stand-in for Supabase's `auth` and `storage` parts (`bun run test:rls -- --stub`). CI runs the same checks against a real local Supabase, but that job hasn't run yet, because the branch hasn't been pushed.
 - The app's 124 tests, lint and build still pass. The app still runs on the demo database.
+
+**Security review fixes (second session, 23 Sep 2026).** A review of C found no way to reach another company's data. It found ways to fake worked hours and a few loose ends. All are fixed in the migrations themselves, since they have never been applied anywhere. A second review then checked the fixes.
+
+- **Worked hours can't be faked.** `complete_task` holds the photo time and work date to the company's today (±1 day). A weekly task gets one proof per week, and a one-off task only one. Only a boss can reopen a finished one-off task. Before this, one client's hours could be pushed from 1.5 to 30.
+- **AI limits live in the database** (`private.usage_limits`: `ai_plan` and `ai_outreach`, 50 a day each). Before, the caller chose the limit. `bump_usage` is boss-only now.
+- **Server vs user is read from the session's database role, not the login token.** A token missing its role claim no longer slips past the worker rules.
+- **Photo paths must be plain image file names.** No `..`, no empty names, no other file types.
+- **A boss can change only a company's name and time zone.** The time zone must be a real one.
+- **Adding a plant under another company fails at once.** It no longer locks that company's row or reveals that it exists.
+- **Crews:** saving a crew without a lead works, an unknown site is refused, and a crew is capped at 100.
+- **Length limits** on every free-text column.
+- **Grants:**
+  - signed-out visitors can't reach any table or function;
+  - signed-in users can't `TRUNCATE`, which would skip row-level security;
+  - new functions aren't executable by everyone by default.
+- **86 security checks pass** (38 new, one per fix).
 
 ---
 
