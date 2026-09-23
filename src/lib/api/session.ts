@@ -4,11 +4,17 @@ import {
 } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 
-import { loginHref, type Viewer } from "../auth/access";
+import { loginHref, type Member, type Viewer } from "../auth/access";
 import type { Database } from "../supabase/types";
 
 type Client = SupabaseClient<Database>;
-type Session = { db: Client; viewer: Viewer };
+type User = { userId: string; email: string };
+type Session = {
+  db: Client;
+  user: User | null;
+  /** The caller's company and role, looked up on first use and then kept for the request. */
+  member: () => Promise<Member | null>;
+};
 
 /**
  * The caller's own Supabase session, read from their cookies — one per request.
@@ -34,10 +40,42 @@ async function readSession(): Promise<Session> {
   // request rather than sending a signed-in user to the login page.
   if (error && isAuthRetryableFetchError(error)) throw error;
   const claims = data?.claims;
-  const viewer: Viewer = claims
+  const user = claims
     ? { userId: claims.sub, email: String(claims.email ?? "") }
     : null;
-  return { db, viewer };
+  let member: Promise<Member | null> | undefined;
+  return {
+    db,
+    user,
+    member: () =>
+      (member ??= user ? readMember(db, user.userId) : Promise.resolve(null)),
+  };
+}
+
+/**
+ * The caller's worker row and company, read with their own session: row-level security shows
+ * a member only their own company, and an archived worker is no member at all.
+ */
+async function readMember(db: Client, userId: string): Promise<Member | null> {
+  const [me, company] = await Promise.all([
+    db
+      .from("workers")
+      .select("id, company_id, app_role, name")
+      .eq("user_id", userId)
+      .is("archived_at", null)
+      .maybeSingle(),
+    db.from("companies").select("name").maybeSingle(),
+  ]);
+  if (me.error) throw new Error(me.error.message);
+  if (company.error) throw new Error(company.error.message);
+  if (!me.data) return null;
+  return {
+    workerId: me.data.id,
+    companyId: me.data.company_id,
+    companyName: company.data?.name ?? "",
+    role: me.data.app_role,
+    name: me.data.name,
+  };
 }
 
 async function currentSession(): Promise<Session> {
@@ -58,9 +96,11 @@ async function currentSession(): Promise<Session> {
   return pending;
 }
 
-/** Who is signed in on this request, or null. Never throws for a signed-out caller. */
+/** Who is signed in on this request, and their company, or null. Never throws when signed out. */
 export async function getSessionViewer(): Promise<Viewer> {
-  return (await currentSession()).viewer;
+  const session = await currentSession();
+  if (!session.user) return null;
+  return { ...session.user, member: await session.member() };
 }
 
 /**
@@ -69,7 +109,26 @@ export async function getSessionViewer(): Promise<Viewer> {
  * reaches the browser whether this runs in a route loader or behind a `useQuery`.
  */
 export async function getAuthedClient(): Promise<Client> {
-  const { db, viewer } = await currentSession();
-  if (!viewer) throw redirect({ href: loginHref() });
+  const { db, user } = await currentSession();
+  if (!user) throw redirect({ href: loginHref() });
+  return db;
+}
+
+/** The signed-in member and their session; fails for someone who has no company yet. */
+export async function requireMember(): Promise<{ db: Client; member: Member }> {
+  const db = await getAuthedClient();
+  const member = await (await currentSession()).member();
+  if (!member) throw new Error("Set up your company first");
+  return { db, member };
+}
+
+/**
+ * The client for office-only work: changing clients, sites, the plan and workers, offers, the
+ * AI features, address search and reports. Row-level security already refuses a worker's
+ * writes; this also stops a worker's reads and paid API calls, and gives a clear error.
+ */
+export async function requireBoss(): Promise<Client> {
+  const { db, member } = await requireMember();
+  if (member.role !== "boss") throw new Error("Only a boss can do this");
   return db;
 }

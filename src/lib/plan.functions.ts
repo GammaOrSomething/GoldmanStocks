@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getAuthedClient } from "@/lib/api/session";
+import { requireBoss } from "@/lib/api/session";
+import { spendAllowance } from "@/lib/api/usage";
 
 import { getOpenAI } from "@/lib/server/llm.server";
 import { ExplainPlanInput, explainPlanWith } from "@/lib/server/plan";
@@ -12,6 +13,6 @@ export type { ExplainPlanInput } from "@/lib/server/plan";
 export const explainPlan = createServerFn({ method: "POST" })
   .validator(ExplainPlanInput)
   .handler(async ({ data }) => {
-    await getAuthedClient(); // signed-in callers only: this spends the OpenAI key
+    await spendAllowance(await requireBoss(), "ai_plan"); // this spends the OpenAI key
     return explainPlanWith(getOpenAI(), data);
   });

@@ -5,7 +5,7 @@ import { emptyClientStats, type ClientStats } from "../client-stats";
 import { currentMonth, monthRangeUtc } from "../month";
 import type { Client } from "../types";
 import { toClient, type Terms } from "./mappers";
-import { getAuthedClient } from "./session";
+import { getAuthedClient, requireBoss } from "./session";
 
 /**
  * Every client, with its site and plant counts and this month's proven hours.
@@ -66,7 +66,7 @@ export type ClientInput = z.infer<typeof ClientInput>;
 export const saveClient = createServerFn({ method: "POST" })
   .validator(ClientInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const db = await getAuthedClient();
+    const db = await requireBoss();
     const row = {
       name: data.name,
       city: data.city,

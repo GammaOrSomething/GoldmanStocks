@@ -1,13 +1,34 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 
-import { isPublicPath, loginHref, resolveAccess, safeRedirect } from "./access";
+import {
+  isPublicPath,
+  loginHref,
+  resolveAccess,
+  safeRedirect,
+  type Member,
+} from "./access";
 
-const viewer = { userId: "u1", email: "boss@example.com" };
+const member = (role: Member["role"]): Member => ({
+  workerId: "w1",
+  companyId: "c1",
+  companyName: "Alpha Gardens",
+  role,
+  name: "Anna",
+});
+const viewer = {
+  userId: "u1",
+  email: "boss@example.com",
+  member: member("boss"),
+};
+const worker = { ...viewer, member: member("worker") };
+const newcomer = { ...viewer, member: null };
+const at = (pathname: string, searchStr = "") => ({ pathname, searchStr });
 
 describe("isPublicPath", () => {
-  test("login and the auth callbacks are public", () => {
+  test("login, signup and the auth callbacks are public", () => {
     expect(isPublicPath("/login")).toBe(true);
+    expect(isPublicPath("/signup")).toBe(true);
     expect(isPublicPath("/auth/confirm")).toBe(true);
   });
 
@@ -18,6 +39,8 @@ describe("isPublicPath", () => {
       "/mobile",
       "/mobile/settings",
       "/loginx",
+      "/signups",
+      "/onboarding",
       "/authors",
     ])
       expect(isPublicPath(path)).toBe(false);
@@ -51,9 +74,10 @@ describe("safeRedirect", () => {
       expect(safeRedirect(bad)).toBe("/");
   });
 
-  test("never sends a signed-in user back to the login page", () => {
+  test("never sends a signed-in user back to the login or signup page", () => {
     expect(safeRedirect("/login")).toBe("/");
     expect(safeRedirect("/login?redirect=%2F")).toBe("/");
+    expect(safeRedirect("/signup")).toBe("/");
   });
 
   test("keeps an encoded path as it is", () => {
@@ -119,5 +143,62 @@ describe("resolveAccess", () => {
     expect(
       resolveAccess({ pathname: "/auth/confirm", searchStr: "" }, viewer),
     ).toBeNull();
+  });
+});
+
+describe("resolveAccess: signup and companies", () => {
+  test("signed out on the signup page: stay", () => {
+    expect(resolveAccess(at("/signup"), null)).toBeNull();
+  });
+
+  test("signed out on onboarding: to login first", () => {
+    expect(resolveAccess(at("/onboarding"), null)).toBe(
+      "/login?redirect=%2Fonboarding",
+    );
+  });
+
+  test("signed in without a company: everything leads to onboarding", () => {
+    for (const path of ["/", "/clients", "/mobile", "/login", "/signup"])
+      expect(resolveAccess(at(path), newcomer)).toBe("/onboarding");
+    expect(resolveAccess(at("/onboarding"), newcomer)).toBeNull();
+  });
+
+  test("signed in without a company: auth callbacks still finish", () => {
+    expect(resolveAccess(at("/auth/confirm"), newcomer)).toBeNull();
+  });
+
+  test("a member on onboarding: on to their home page", () => {
+    expect(resolveAccess(at("/onboarding"), viewer)).toBe("/");
+    expect(resolveAccess(at("/onboarding"), worker)).toBe("/mobile");
+  });
+
+  test("signed in on the signup page: on, like the login page", () => {
+    expect(resolveAccess(at("/signup"), viewer)).toBe("/");
+    expect(resolveAccess(at("/signup"), worker)).toBe("/mobile");
+  });
+});
+
+describe("resolveAccess: bosses and workers", () => {
+  test("a boss may open the office and the worker app", () => {
+    for (const path of ["/", "/clients", "/schedule", "/mobile"])
+      expect(resolveAccess(at(path), viewer)).toBeNull();
+  });
+
+  test("a worker stays in the worker app", () => {
+    for (const path of ["/mobile", "/mobile/settings", "/mobile/new-plant"])
+      expect(resolveAccess(at(path), worker)).toBeNull();
+    for (const path of ["/", "/clients", "/clients/c1/report", "/workers"])
+      expect(resolveAccess(at(path), worker)).toBe("/mobile");
+    expect(resolveAccess(at("/mobilex"), worker)).toBe("/mobile");
+  });
+
+  test("a worker signing in is sent on only to a worker page", () => {
+    expect(
+      resolveAccess(at("/login", "?redirect=%2Fmobile%2Fsettings"), worker),
+    ).toBe("/mobile/settings");
+    expect(resolveAccess(at("/login", "?redirect=%2Fclients"), worker)).toBe(
+      "/mobile",
+    );
+    expect(resolveAccess(at("/login"), worker)).toBe("/mobile");
   });
 });

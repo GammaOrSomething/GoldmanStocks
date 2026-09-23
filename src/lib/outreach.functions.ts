@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
-import { getAuthedClient } from "@/lib/api/session";
+import { requireBoss } from "@/lib/api/session";
+import { spendAllowance } from "@/lib/api/usage";
 import { getOpenAI } from "@/lib/server/llm.server";
 import {
   DraftOffersInput,
@@ -19,7 +20,7 @@ import {
  * covered by any of them.
  */
 export const listOffers = createServerFn({ method: "GET" }).handler(async () =>
-  listRecentOffers(await getAuthedClient()),
+  listRecentOffers(await requireBoss()),
 );
 
 /**
@@ -30,12 +31,13 @@ export const listOffers = createServerFn({ method: "GET" }).handler(async () =>
 export const draftOffers = createServerFn({ method: "POST" })
   .validator(DraftOffersInput)
   .handler(async ({ data }) => {
-    const db = await getAuthedClient();
+    const db = await requireBoss();
     const covered = new Set(
       (await listRecentOffers(db)).map((o) => o.projectId),
     );
     const fresh = data.opportunities.filter((o) => !covered.has(o.projectId));
     if (fresh.length === 0) return { drafted: 0 };
+    await spendAllowance(db, "ai_outreach");
     const drafts = await draftOffersWith(getOpenAI(), { opportunities: fresh });
     await saveOffers(db, drafts);
     return { drafted: drafts.length };
@@ -45,10 +47,10 @@ export const draftOffers = createServerFn({ method: "POST" })
 export const decideOffer = createServerFn({ method: "POST" })
   .validator(
     z.object({
-      id: z.string().min(1),
+      id: z.uuid(),
       status: z.enum(["approved", "dismissed"]),
     }),
   )
   .handler(async ({ data }) =>
-    setOfferStatus(await getAuthedClient(), data.id, data.status),
+    setOfferStatus(await requireBoss(), data.id, data.status),
   );

@@ -6,14 +6,43 @@
  * what that session may read or write.
  */
 
-/** The signed-in person, or null when signed out. */
-export type Viewer = { userId: string; email: string } | null;
+/** The company a signed-in person works for, and what they are there. */
+export type Member = {
+  workerId: string;
+  companyId: string;
+  companyName: string;
+  role: "boss" | "worker";
+  name: string;
+};
+
+/**
+ * The signed-in person, or null when signed out. `member` is null until they have set up a
+ * company (or, from D2, accepted an invitation).
+ */
+export type Viewer = {
+  userId: string;
+  email: string;
+  member: Member | null;
+} | null;
 
 const LOGIN = "/login";
+const SIGNUP = "/signup";
+const ONBOARDING = "/onboarding";
+const WORKER_APP = "/mobile";
 
-/** Pages anyone may open: the login page and the email-link callbacks under /auth/. */
+/** Pages anyone may open: login, signup and the email-link callbacks under /auth/. */
 export function isPublicPath(pathname: string): boolean {
-  return pathname === LOGIN || pathname.startsWith("/auth/");
+  return (
+    pathname === LOGIN || pathname === SIGNUP || pathname.startsWith("/auth/")
+  );
+}
+
+const isWorkerPage = (pathname: string) =>
+  pathname === WORKER_APP || pathname.startsWith(`${WORKER_APP}/`);
+
+/** Where a member lands by default: the office for a boss, the worker app for a worker. */
+export function homeFor(member: Member): string {
+  return member.role === "boss" ? "/" : WORKER_APP;
 }
 
 /**
@@ -32,7 +61,7 @@ export function safeRedirect(target: unknown, fallback = "/"): string {
   const base = "http://same-site.invalid";
   const url = new URL(target, base);
   if (url.origin !== base) return fallback;
-  if (url.pathname === LOGIN) return fallback;
+  if (url.pathname === LOGIN || url.pathname === SIGNUP) return fallback;
   return target;
 }
 
@@ -53,8 +82,23 @@ export function resolveAccess(
 
   if (!viewer)
     return isPublicPath(pathname) ? null : loginHref(`${pathname}${searchStr}`);
+  // An email link finishes its own job, whatever state the account is in.
+  if (pathname.startsWith("/auth/")) return null;
 
-  if (pathname === LOGIN)
-    return safeRedirect(new URLSearchParams(searchStr).get("redirect"));
+  const { member } = viewer;
+  if (!member) return pathname === ONBOARDING ? null : ONBOARDING;
+
+  const home = homeFor(member);
+  if (pathname === LOGIN || pathname === SIGNUP) {
+    const next = safeRedirect(
+      new URLSearchParams(searchStr).get("redirect"),
+      home,
+    );
+    return member.role === "worker" && !isWorkerPage(next.split("?")[0]!)
+      ? home
+      : next;
+  }
+  if (pathname === ONBOARDING) return home;
+  if (member.role === "worker" && !isWorkerPage(pathname)) return home;
   return null;
 }

@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import type { Worker } from "../types";
 import { toWorker } from "./mappers";
-import { getAuthedClient } from "./session";
+import { getAuthedClient, requireBoss } from "./session";
 
 const Language = z.enum(["ET", "LV", "EN"]);
 
@@ -40,7 +40,7 @@ export type WorkerInput = z.infer<typeof WorkerInput>;
 export const saveWorker = createServerFn({ method: "POST" })
   .validator(WorkerInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const db = await getAuthedClient();
+    const db = await requireBoss();
     const row = {
       name: data.name,
       job_title: data.role,

@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import type { Task } from "../types";
 import { clientNameByProject } from "./lookups";
 import { toTask } from "./mappers";
-import { getAuthedClient } from "./session";
+import { getAuthedClient, requireBoss } from "./session";
 import {
   NewTaskInput,
   TaskInput,
@@ -59,8 +59,8 @@ export const projectTasks = createServerFn({ method: "GET" })
 // These back `useTaskActions()` in src/hooks/use-tasks.ts. Call them through that hook rather
 // than directly, so the cached task list is refetched and every open view stays in step.
 //
-// Row-level security lets only a boss write `tasks`. For anyone else an update quietly
-// matches no rows, so updates ask for the rows back and treat none as "not allowed".
+// Only a boss writes `tasks` directly (requireBoss, and row-level security behind it). An
+// update that matches no rows means the task is gone, so it asks for the rows back.
 
 /**
  * Change some fields of a task. Skipping or reopening goes through `set_task_status`, which a
@@ -69,8 +69,9 @@ export const projectTasks = createServerFn({ method: "GET" })
 export const updateTask = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.uuid(), patch: TaskPatch }))
   .handler(async ({ data: { id, patch } }) => {
-    const db = await getAuthedClient();
     const { row, status } = patchToRow(patch);
+    const hasRow = Object.keys(row).length > 0;
+    const db = hasRow ? await requireBoss() : await getAuthedClient();
     if (status) {
       const { error } = await db.rpc("set_task_status", {
         p_task_id: id,
@@ -78,15 +79,14 @@ export const updateTask = createServerFn({ method: "POST" })
       });
       if (error) throw new Error(error.message);
     }
-    if (Object.keys(row).length > 0) {
+    if (hasRow) {
       const { data, error } = await db
         .from("tasks")
         .update(row)
         .eq("id", id)
         .select("id");
       if (error) throw new Error(error.message);
-      if (!data?.length)
-        throw new Error("Task not found, or not yours to edit");
+      if (!data?.length) throw new Error("Task not found");
     }
     return { id };
   });
@@ -101,7 +101,7 @@ export const replaceTasks = createServerFn({ method: "POST" })
   .handler(async ({ data: tasks }) => {
     if (tasks.length === 0) return { count: 0 };
     const { error } = await (
-      await getAuthedClient()
+      await requireBoss()
     )
       .from("tasks")
       .upsert(tasks.map((task) => ({ ...taskToRow(task), id: task.id })));
@@ -113,7 +113,7 @@ export const removeTask = createServerFn({ method: "POST" })
   .validator(z.uuid())
   .handler(async ({ data: id }) => {
     const { error } = await (
-      await getAuthedClient()
+      await requireBoss()
     )
       .from("tasks")
       .delete()
@@ -126,7 +126,7 @@ export const addTask = createServerFn({ method: "POST" })
   .validator(NewTaskInput)
   .handler(async ({ data: task }) => {
     const { data, error } = await (
-      await getAuthedClient()
+      await requireBoss()
     )
       .from("tasks")
       .insert(taskToRow(task))

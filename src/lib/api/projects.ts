@@ -6,7 +6,7 @@ import type { Database } from "../supabase/types";
 import type { Project, Worker } from "../types";
 import { clientNameById } from "./lookups";
 import { crewsBySite, toProject, toWorker, type Terms } from "./mappers";
-import { getAuthedClient } from "./session";
+import { getAuthedClient, requireBoss } from "./session";
 
 type Db = SupabaseClient<Database>;
 
@@ -145,7 +145,7 @@ export type SiteInput = z.infer<typeof SiteInput>;
 export const saveSite = createServerFn({ method: "POST" })
   .validator(SiteInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const db = await getAuthedClient();
+    const db = await requireBoss();
     const row = {
       client_id: data.clientId,
       name: data.name,
@@ -193,7 +193,7 @@ export const saveSite = createServerFn({ method: "POST" })
 export const moveSite = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.uuid(), lat: latitude, lng: longitude }))
   .handler(async ({ data }) => {
-    const db = await getAuthedClient();
+    const db = await requireBoss();
     const { error } = await db
       .from("projects")
       .update({ lat: data.lat, lng: data.lng })
