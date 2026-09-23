@@ -1,6 +1,11 @@
-import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  isAuthRetryableFetchError,
+  type EmailOtpType,
+} from "@supabase/supabase-js";
 
 import { supabase } from "@/lib/supabase/client";
+
+import { OFFLINE, signUpErrorMessage } from "./errors";
 
 /**
  * Sign-in and sign-out run in the browser, not in a server function.
@@ -14,15 +19,57 @@ import { supabase } from "@/lib/supabase/client";
 export async function signIn(email: string, password: string): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (!error) return;
-  if (isAuthRetryableFetchError(error))
-    throw new Error(
-      "Couldn't reach the server. Check your connection and try again.",
-    );
+  if (isAuthRetryableFetchError(error)) throw new Error(OFFLINE);
   // Don't reveal whether the email exists; do pass on "too many attempts".
   throw new Error(
     error.status === 429
       ? "Too many attempts. Wait a minute and try again."
       : "Wrong email or password.",
+  );
+}
+
+/**
+ * Create an account. With email confirmation on (production), there's no session yet: the
+ * person confirms through the emailed link, which lands on /auth/confirm and then onboarding.
+ * Supabase answers an already-registered email the same way, so this never reveals one.
+ *
+ * `name` and `company` only prefill the onboarding form; the database never trusts them.
+ */
+export async function signUp(input: {
+  email: string;
+  password: string;
+  name: string;
+  company: string;
+}): Promise<{ confirmEmail: boolean }> {
+  const { data, error } = await supabase.auth.signUp({
+    email: input.email,
+    password: input.password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      data: { full_name: input.name, company_name: input.company },
+    },
+  });
+  if (error) throw new Error(signUpErrorMessage(error));
+  return { confirmEmail: !data.session };
+}
+
+/**
+ * Finish what an emailed link started (confirm the address, accept an invitation, reset a
+ * password). Called when the person presses the button on /auth/confirm, never on page load:
+ * mail scanners open links, and verifying then would use up the one-time token.
+ */
+export async function verifyEmailLink(
+  tokenHash: string,
+  type: EmailOtpType,
+): Promise<void> {
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type,
+  });
+  if (!error) return;
+  if (isAuthRetryableFetchError(error)) throw new Error(OFFLINE);
+  throw new Error(
+    "This link has expired or was already used. Ask for a new one.",
   );
 }
 

@@ -1,10 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
-import logoUrl from "@/assets/goldman-stocks-logo.png";
+import { AuthCard, FormError } from "@/components/AuthCard";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { safeRedirect } from "@/lib/auth/access";
@@ -51,69 +50,54 @@ function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center justify-center gap-3">
-          <img
-            src={logoUrl}
-            alt=""
-            className="size-10 rounded-lg object-cover shadow-sm"
+    <AuthCard
+      title="Sign in"
+      subtitle="Office and worker app use the same account."
+      footer={
+        <>
+          New to Goldman Stocks?{" "}
+          <Link to="/signup" className="font-medium text-primary underline">
+            Set up your company
+          </Link>
+        </>
+      }
+    >
+      <form className="mt-5 space-y-4" onSubmit={submit} noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
-          <p className="font-display text-xl font-bold text-primary">
-            Goldman Stocks
-          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </div>
 
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <h1 className="text-lg font-semibold text-foreground">Sign in</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Office and worker app use the same account.
-            </p>
+        <FormError message={error} />
 
-            <form className="mt-5 space-y-4" onSubmit={submit} noValidate>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-
-              {error ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              ) : null}
-
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={busy || !email.trim() || !password}
-              >
-                {busy ? "Signing in…" : "Sign in"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={busy || !email.trim() || !password}
+        >
+          {busy ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }

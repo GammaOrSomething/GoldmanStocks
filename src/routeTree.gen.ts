@@ -13,10 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MobileRouteImport } from './routes/mobile'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PlantsRouteImport } from './routes/plants'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WorkersRouteImport } from './routes/workers'
+import { Route as AuthConfirmRouteImport } from './routes/auth.confirm'
 import { Route as MobileIndexRouteImport } from './routes/mobile.index'
 import { Route as MobileLocationsRouteImport } from './routes/mobile.locations'
 import { Route as MobileNewPlantRouteImport } from './routes/mobile.new-plant'
@@ -45,6 +48,11 @@ const MobileRoute = MobileRouteImport.update({
   path: '/mobile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlantsRoute = PlantsRouteImport.update({
   id: '/plants',
   path: '/plants',
@@ -60,9 +68,19 @@ const ScheduleRoute = ScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkersRoute = WorkersRouteImport.update({
   id: '/workers',
   path: '/workers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthConfirmRoute = AuthConfirmRouteImport.update({
+  id: '/auth/confirm',
+  path: '/auth/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MobileIndexRoute = MobileIndexRouteImport.update({
@@ -106,10 +124,13 @@ export interface FileRoutesByFullPath {
   '/clients': typeof ClientsRoute
   '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
   '/schedule': typeof ScheduleRoute
+  '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -122,10 +143,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
   '/schedule': typeof ScheduleRoute
+  '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -140,10 +164,13 @@ export interface FileRoutesById {
   '/clients': typeof ClientsRoute
   '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
   '/schedule': typeof ScheduleRoute
+  '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -159,10 +186,13 @@ export interface FileRouteTypes {
     | '/clients'
     | '/login'
     | '/mobile'
+    | '/onboarding'
     | '/plants'
     | '/projects'
     | '/schedule'
+    | '/signup'
     | '/workers'
+    | '/auth/confirm'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -175,10 +205,13 @@ export interface FileRouteTypes {
     | '/'
     | '/clients'
     | '/login'
+    | '/onboarding'
     | '/plants'
     | '/projects'
     | '/schedule'
+    | '/signup'
     | '/workers'
+    | '/auth/confirm'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -192,10 +225,13 @@ export interface FileRouteTypes {
     | '/clients'
     | '/login'
     | '/mobile'
+    | '/onboarding'
     | '/plants'
     | '/projects'
     | '/schedule'
+    | '/signup'
     | '/workers'
+    | '/auth/confirm'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -210,10 +246,13 @@ export interface RootRouteChildren {
   ClientsRoute: typeof ClientsRoute
   LoginRoute: typeof LoginRoute
   MobileRoute: typeof MobileRouteWithChildren
+  OnboardingRoute: typeof OnboardingRoute
   PlantsRoute: typeof PlantsRoute
   ProjectsRoute: typeof ProjectsRoute
   ScheduleRoute: typeof ScheduleRoute
+  SignupRoute: typeof SignupRoute
   WorkersRoute: typeof WorkersRoute
+  AuthConfirmRoute: typeof AuthConfirmRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ClientsClientIdReportRoute: typeof ClientsClientIdReportRoute
 }
@@ -248,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MobileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/plants': {
       id: '/plants'
       path: '/plants'
@@ -269,11 +315,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workers': {
       id: '/workers'
       path: '/workers'
       fullPath: '/workers'
       preLoaderRoute: typeof WorkersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/confirm': {
+      id: '/auth/confirm'
+      path: '/auth/confirm'
+      fullPath: '/auth/confirm'
+      preLoaderRoute: typeof AuthConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mobile/': {
@@ -352,10 +412,13 @@ const rootRouteChildren: RootRouteChildren = {
   ClientsRoute: ClientsRoute,
   LoginRoute: LoginRoute,
   MobileRoute: MobileRouteWithChildren,
+  OnboardingRoute: OnboardingRoute,
   PlantsRoute: PlantsRoute,
   ProjectsRoute: ProjectsRoute,
   ScheduleRoute: ScheduleRoute,
+  SignupRoute: SignupRoute,
   WorkersRoute: WorkersRoute,
+  AuthConfirmRoute: AuthConfirmRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ClientsClientIdReportRoute: ClientsClientIdReportRoute,
 }
