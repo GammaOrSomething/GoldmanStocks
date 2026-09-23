@@ -4,11 +4,30 @@
  */
 import type { Client, Plant, Project, Task, Worker } from "../types";
 
+/** A crew member with no login yet; the head gardener is the boss. */
+export function worker(
+  id: string,
+  name: string,
+  role: string,
+  language: string,
+): Worker {
+  return {
+    id,
+    name,
+    role,
+    language,
+    color: "",
+    email: "",
+    appRole: role === "Head gardener" ? "boss" : "worker",
+    hasLogin: false,
+  };
+}
+
 export const workers: Worker[] = [
-  { id: "w1", name: "Head", role: "Head gardener", language: "ET", color: "" },
-  { id: "w2", name: "Gardener", role: "Gardener", language: "ET", color: "" },
-  { id: "w3", name: "Seasonal", role: "Seasonal", language: "LV", color: "" },
-  { id: "w4", name: "Arborist", role: "Tree care", language: "EN", color: "" },
+  worker("w1", "Head", "Head gardener", "ET"),
+  worker("w2", "Gardener", "Gardener", "ET"),
+  worker("w3", "Seasonal", "Seasonal", "LV"),
+  worker("w4", "Arborist", "Tree care", "EN"),
 ];
 
 function client(id: string, city: string, monthlyValue: number): Client {
@@ -88,6 +107,7 @@ function plant(
 ): Plant {
   return {
     id,
+    code: id,
     projectId,
     species: kind,
     common: `${kind} ${id}`,

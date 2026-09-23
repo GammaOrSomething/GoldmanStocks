@@ -1,41 +1,66 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
+import type { Database } from "../supabase/types";
 import type { Project, Worker } from "../types";
 import { clientNameById } from "./lookups";
-import { toProject, toWorker } from "./mappers";
-import { nextId } from "./ids";
+import { crewsBySite, toProject, toWorker, type Terms } from "./mappers";
 import { getAuthedClient } from "./session";
+
+type Db = SupabaseClient<Database>;
+
+/** Sites with their client's name, crew and (for a boss) terms; one site when `id` is given. */
+async function loadSites(db: Db, id?: string): Promise<Project[]> {
+  let projects = db.from("projects").select("*").order("name");
+  let crews = db
+    .from("project_workers")
+    .select("project_id, worker_id, is_lead");
+  // Boss-only; a worker gets no rows, and sees no money.
+  let terms = db
+    .from("project_terms")
+    .select("project_id, monthly_value, contract_until");
+  if (id) {
+    projects = projects.eq("id", id);
+    crews = crews.eq("project_id", id);
+    terms = terms.eq("project_id", id);
+  }
+
+  const [projectRows, crewRows, termRows, nameByClient] = await Promise.all([
+    projects,
+    crews,
+    terms,
+    clientNameById(),
+  ]);
+  for (const result of [projectRows, crewRows, termRows])
+    if (result.error) throw new Error(result.error.message);
+
+  const crewById = crewsBySite(crewRows.data ?? []);
+  const termsById = new Map<string, Terms>(
+    (termRows.data ?? []).map((t) => [t.project_id, t]),
+  );
+  return (projectRows.data ?? []).map((row) =>
+    toProject(
+      row,
+      nameByClient.get(row.client_id) ?? "",
+      crewById.get(row.id),
+      termsById.get(row.id),
+    ),
+  );
+}
 
 /** Every work site (project). */
 export const listProjects = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Project[]> => {
-    const [{ data, error }, nameByClient] = await Promise.all([
-      (await getAuthedClient()).from("projects").select("*").order("id"),
-      clientNameById(),
-    ]);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((row) =>
-      toProject(row, nameByClient.get(row.client_id) ?? ""),
-    );
-  },
+  async (): Promise<Project[]> => loadSites(await getAuthedClient()),
 );
 
-/** One work site, or null for an unknown id. */
+/** One work site, or null for an unknown or malformed id. */
 export const getProject = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Project | null> => {
-    const [{ data, error }, nameByClient] = await Promise.all([
-      (await getAuthedClient())
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .maybeSingle(),
-      clientNameById(),
-    ]);
-    if (error) throw new Error(error.message);
-    if (!data) return null;
-    return toProject(data, nameByClient.get(data.client_id) ?? "");
+    if (!z.uuid().safeParse(projectId).success) return null;
+    const [site] = await loadSites(await getAuthedClient(), projectId);
+    return site ?? null;
   });
 
 export type ProjectWorker = Worker & {
@@ -51,38 +76,40 @@ export type ProjectWorker = Worker & {
 export const projectWorkers = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<ProjectWorker[]> => {
+    if (!z.uuid().safeParse(projectId).success) return [];
     const db = await getAuthedClient();
 
-    const { data: project, error: pErr } = await db
-      .from("projects")
-      .select("lead_worker_id, worker_ids")
-      .eq("id", projectId)
-      .maybeSingle();
-    if (pErr) throw new Error(pErr.message);
-    if (!project) return [];
+    const [crewRows, taskRows] = await Promise.all([
+      db
+        .from("project_workers")
+        .select("project_id, worker_id, is_lead")
+        .eq("project_id", projectId),
+      db
+        .from("tasks")
+        .select("worker_id, duration")
+        .eq("project_id", projectId),
+    ]);
+    if (crewRows.error) throw new Error(crewRows.error.message);
+    if (taskRows.error) throw new Error(taskRows.error.message);
 
-    const [{ data: workerRows, error: wErr }, { data: taskRows, error: tErr }] =
-      await Promise.all([
-        db.from("workers").select("*").in("id", project.worker_ids),
-        db
-          .from("tasks")
-          .select("worker_id, duration")
-          .eq("project_id", projectId),
-      ]);
+    const crew = crewsBySite(crewRows.data ?? []).get(projectId);
+    if (!crew) return [];
+    const { data: workerRows, error: wErr } = await db
+      .from("workers")
+      .select("*")
+      .in("id", crew.workerIds);
     if (wErr) throw new Error(wErr.message);
-    if (tErr) throw new Error(tErr.message);
+    const rowById = new Map((workerRows ?? []).map((w) => [w.id, w]));
 
-    const byId = new Map((workerRows ?? []).map((w) => [w.id, w]));
-
-    // Ordered by the project's own worker_ids, so the crew list reads the same as before.
-    return project.worker_ids.flatMap((id) => {
-      const row = byId.get(id);
+    // Lead first, then the crew, as the site lists them.
+    return crew.workerIds.flatMap((id) => {
+      const row = rowById.get(id);
       if (!row) return [];
-      const own = (taskRows ?? []).filter((t) => t.worker_id === id);
+      const own = (taskRows.data ?? []).filter((t) => t.worker_id === id);
       return [
         {
           ...toWorker(row),
-          isLead: project.lead_worker_id === id,
+          isLead: crew.leadWorkerId === id,
           tasksThisWeek: own.length,
           hoursThisWeek: own.reduce((sum, t) => sum + Number(t.duration), 0),
         },
@@ -96,16 +123,17 @@ const longitude = z.number().min(-180).max(180);
 
 export const SiteInput = z.object({
   /** omit to add a new site */
-  id: z.string().optional(),
-  clientId: z.string().min(1, "Pick a client"),
-  name: z.string().trim().min(1, "Name is required"),
-  address: z.string().trim().min(1, "Address is required"),
-  city: z.string().trim().min(1, "City is required"),
+  id: z.uuid().optional(),
+  clientId: z.uuid("Pick a client"),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  address: z.string().trim().min(1, "Address is required").max(500),
+  city: z.string().trim().min(1, "City is required").max(200),
   lat: latitude,
   lng: longitude,
-  zones: z.array(z.string().trim().min(1)),
-  workerIds: z.array(z.string()),
-  leadWorkerId: z.string(),
+  zones: z.array(z.string().trim().min(1).max(100)).max(100),
+  workerIds: z.array(z.uuid()).max(100),
+  /** "" for a site without a lead */
+  leadWorkerId: z.uuid().or(z.literal("")),
   visitsPerMonth: z.number().int().min(0),
   monthlyValue: z.number().min(0),
   contractUntil: isoDate.or(z.literal("")),
@@ -113,7 +141,7 @@ export const SiteInput = z.object({
 });
 export type SiteInput = z.infer<typeof SiteInput>;
 
-/** Create or update a work site (project). */
+/** Create or update a work site (project), its crew and its contract terms. */
 export const saveSite = createServerFn({ method: "POST" })
   .validator(SiteInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
@@ -126,27 +154,44 @@ export const saveSite = createServerFn({ method: "POST" })
       lat: data.lat,
       lng: data.lng,
       zones: data.zones,
-      worker_ids: data.workerIds,
-      lead_worker_id: data.leadWorkerId || null,
       visits_per_month: data.visitsPerMonth,
-      monthly_value: data.monthlyValue,
-      contract_until: data.contractUntil || null,
       status: data.status,
     };
-    if (data.id) {
-      const { error } = await db.from("projects").update(row).eq("id", data.id);
+
+    let id = data.id;
+    if (id) {
+      const { error } = await db.from("projects").update(row).eq("id", id);
       if (error) throw new Error(error.message);
-      return { id: data.id };
+    } else {
+      const { data: created, error } = await db
+        .from("projects")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      id = created.id;
     }
-    const id = await nextId(db, "projects", "p");
-    const { error } = await db.from("projects").insert({ ...row, id });
-    if (error) throw new Error(error.message);
+
+    const [crew, terms] = await Promise.all([
+      db.rpc("set_project_crew", {
+        p_project_id: id,
+        p_worker_ids: data.workerIds,
+        p_lead_id: data.leadWorkerId || null,
+      }),
+      db.from("project_terms").upsert({
+        project_id: id,
+        monthly_value: data.monthlyValue,
+        contract_until: data.contractUntil || null,
+      }),
+    ]);
+    if (crew.error) throw new Error(crew.error.message);
+    if (terms.error) throw new Error(terms.error.message);
     return { id };
   });
 
 /** Move a site on the map. The weather lookup and route planning follow it. */
 export const moveSite = createServerFn({ method: "POST" })
-  .validator(z.object({ id: z.string().min(1), lat: latitude, lng: longitude }))
+  .validator(z.object({ id: z.uuid(), lat: latitude, lng: longitude }))
   .handler(async ({ data }) => {
     const db = await getAuthedClient();
     const { error } = await db

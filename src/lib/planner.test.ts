@@ -11,7 +11,7 @@ import {
   routeOrder,
   type PlanInput,
 } from "./planner";
-import { plants, projects, tasks, workers } from "./__fixtures__/week";
+import { plants, projects, tasks, worker, workers } from "./__fixtures__/week";
 import type { Project, Task, Worker } from "./types";
 import type { SiteForecast } from "./weather";
 
@@ -24,16 +24,10 @@ const WEEK = [
 ];
 
 const crew: Worker[] = [
-  {
-    id: "head",
-    name: "Head",
-    role: "Head gardener",
-    language: "ET",
-    color: "",
-  },
-  { id: "gard", name: "Gard", role: "Gardener", language: "ET", color: "" },
-  { id: "seas", name: "Seas", role: "Seasonal", language: "LV", color: "" },
-  { id: "tree", name: "Tree", role: "Tree care", language: "EN", color: "" },
+  worker("head", "Head", "Head gardener", "ET"),
+  worker("gard", "Gard", "Gardener", "ET"),
+  worker("seas", "Seas", "Seasonal", "LV"),
+  worker("tree", "Tree", "Tree care", "EN"),
 ];
 
 function project(

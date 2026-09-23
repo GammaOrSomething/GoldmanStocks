@@ -5,14 +5,13 @@ import type { Plant } from "../types";
 import { clientNameByProject } from "./lookups";
 import { toPlant } from "./mappers";
 import { latLngToPlan } from "../geo";
-import { nextId } from "./ids";
 import { getAuthedClient } from "./session";
 
 /** Every plant and area in the register. */
 export const listPlants = createServerFn({ method: "GET" }).handler(
   async (): Promise<Plant[]> => {
     const [{ data, error }, clientByProject] = await Promise.all([
-      (await getAuthedClient()).from("plants").select("*").order("id"),
+      (await getAuthedClient()).from("plants").select("*").order("code"),
       clientNameByProject(),
     ]);
     if (error) throw new Error(error.message);
@@ -26,12 +25,13 @@ export const listPlants = createServerFn({ method: "GET" }).handler(
 export const projectPlants = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Plant[]> => {
+    if (!z.uuid().safeParse(projectId).success) return [];
     const [{ data, error }, clientByProject] = await Promise.all([
       (await getAuthedClient())
         .from("plants")
         .select("*")
         .eq("project_id", projectId)
-        .order("id"),
+        .order("code"),
       clientNameByProject(),
     ]);
     if (error) throw new Error(error.message);
@@ -44,15 +44,15 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const PlantInput = z.object({
   /** omit to register a new plant */
-  id: z.string().optional(),
-  projectId: z.string().min(1, "Pick a site"),
-  common: z.string().trim().min(1, "Name is required"),
-  species: z.string().trim(),
+  id: z.uuid().optional(),
+  projectId: z.uuid("Pick a site"),
+  common: z.string().trim().min(1, "Name is required").max(200),
+  species: z.string().trim().max(200),
   kind: z.enum(["Tree", "Hedge", "Lawn", "Flower bed", "Shrub"]),
   /** zone within the site, e.g. "North courtyard" */
-  site: z.string().trim(),
+  site: z.string().trim().max(200),
   status: z.enum(["healthy", "attention", "critical"]),
-  nextTask: z.string().trim(),
+  nextTask: z.string().trim().max(200),
   nextCareDate: isoDate.or(z.literal("")),
   /** where it stands — from the phone's GPS. Without it a new plant goes to the site's centre. */
   lat: z.number().min(-90).max(90).optional(),
@@ -60,17 +60,10 @@ export const PlantInput = z.object({
 });
 export type PlantInput = z.infer<typeof PlantInput>;
 
-/** PostgREST's answer when a column doesn't exist — i.e. migration 0003 isn't applied yet. */
-function isMissingColumn(error: { code?: string; message: string }) {
-  return (
-    error.code === "PGRST204" || /column .* does not exist/i.test(error.message)
-  );
-}
-
 /**
- * Register or update a plant. With GPS it's stored at its real position (plants.lat/lng,
- * migration 0003) and also placed on the site plan (x/y); before that migration is applied the
- * write quietly falls back to x/y only.
+ * Register or update a plant. With GPS it's stored at its real position and also placed on
+ * the site plan (x/y); without, a new plant goes to the middle of the plan. The database gives
+ * a new plant its id and its readable code (PL-0001, …).
  */
 export const savePlant = createServerFn({ method: "POST" })
   .validator(PlantInput)
@@ -99,30 +92,25 @@ export const savePlant = createServerFn({ method: "POST" })
       common: data.common,
       species: data.species,
       kind: data.kind,
-      site: data.site,
+      zone: data.site,
       status: data.status,
       next_task: data.nextTask || null,
       next_care: data.nextCareDate || null,
       ...(onPlan ?? {}),
+      ...(gps ?? {}),
     };
-    const withGps = gps ? { ...row, lat: gps.lat, lng: gps.lng } : row;
 
     if (data.id) {
-      const id = data.id;
-      const update = (values: typeof row) =>
-        db.from("plants").update(values).eq("id", id);
-      let { error } = await update(withGps);
-      if (error && gps && isMissingColumn(error))
-        ({ error } = await update(row));
+      const { error } = await db.from("plants").update(row).eq("id", data.id);
       if (error) throw new Error(error.message);
-      return { id };
+      return { id: data.id };
     }
 
-    const id = await nextId(db, "plants", "PL-", 4);
-    const insert = (values: typeof row) =>
-      db.from("plants").insert({ x: 50, y: 50, ...values, id });
-    let { error } = await insert(withGps);
-    if (error && gps && isMissingColumn(error)) ({ error } = await insert(row));
+    const { data: created, error } = await db
+      .from("plants")
+      .insert({ x: 50, y: 50, ...row })
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
-    return { id };
+    return { id: created.id };
   });

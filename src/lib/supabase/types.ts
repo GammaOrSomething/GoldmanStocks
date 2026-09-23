@@ -478,7 +478,7 @@ export type Database = {
         Returns: undefined;
       };
       bump_usage: {
-        Args: { p_kind: string; p_daily_limit: number };
+        Args: { p_kind: "ai_plan" | "ai_outreach" };
         Returns: boolean;
       };
       client_stats: {

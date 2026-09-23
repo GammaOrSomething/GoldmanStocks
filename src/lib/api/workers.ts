@@ -3,10 +3,11 @@ import { z } from "zod/v4";
 
 import type { Worker } from "../types";
 import { toWorker } from "./mappers";
-import { companyId, nextId } from "./ids";
 import { getAuthedClient } from "./session";
 
-/** Every worker in the company. */
+const Language = z.enum(["ET", "LV", "EN"]);
+
+/** Everyone in the company, archived people left out. */
 export const listWorkers = createServerFn({ method: "GET" }).handler(
   async (): Promise<Worker[]> => {
     const { data, error } = await (
@@ -14,7 +15,8 @@ export const listWorkers = createServerFn({ method: "GET" }).handler(
     )
       .from("workers")
       .select("*")
-      .order("id");
+      .is("archived_at", null)
+      .order("name");
     if (error) throw new Error(error.message);
     return (data ?? []).map(toWorker);
   },
@@ -25,20 +27,25 @@ const PALETTE = [1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`);
 
 export const WorkerInput = z.object({
   /** omit to add a new worker */
-  id: z.string().optional(),
-  name: z.string().trim().min(1, "Name is required"),
-  role: z.string().trim().min(1, "Role is required"),
-  language: z.enum(["ET", "LV", "EN"]),
-  color: z.string().optional(),
+  id: z.uuid().optional(),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  /** job title, e.g. "Head gardener" */
+  role: z.string().trim().min(1, "Role is required").max(100),
+  language: Language,
+  color: z.string().max(32).optional(),
 });
 export type WorkerInput = z.infer<typeof WorkerInput>;
 
-/** Add or update a worker. A new worker gets the least-used palette colour. */
+/** Add or update a worker (boss only). A new worker gets the least-used palette colour. */
 export const saveWorker = createServerFn({ method: "POST" })
   .validator(WorkerInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = await getAuthedClient();
-    const row = { name: data.name, role: data.role, language: data.language };
+    const row = {
+      name: data.name,
+      job_title: data.role,
+      language: data.language,
+    };
     if (data.id) {
       const { error } = await db
         .from("workers")
@@ -57,10 +64,22 @@ export const saveWorker = createServerFn({ method: "POST" })
     const color =
       data.color ?? [...PALETTE].sort((a, b) => uses(a) - uses(b))[0]!;
 
-    const id = await nextId(db, "workers", "w");
-    const { error } = await db
+    const { data: created, error } = await db
       .from("workers")
-      .insert({ ...row, id, color, company_id: await companyId(db) });
+      .insert({ ...row, color })
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
-    return { id };
+    return { id: created.id };
+  });
+
+/** The signed-in person changes the language they speak; the only edit a worker makes. */
+export const updateMyLanguage = createServerFn({ method: "POST" })
+  .validator(Language)
+  .handler(async ({ data: language }) => {
+    const { error } = await (
+      await getAuthedClient()
+    ).rpc("update_my_profile", { p_language: language });
+    if (error) throw new Error(error.message);
+    return { language };
   });
