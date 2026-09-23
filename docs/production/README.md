@@ -22,7 +22,31 @@ _Written at the end of the 23 Sep 2026 session._
 
 **To resume D1** (`git checkout feat/cut-over`):
 
-1. **Security review of C first.** It was still running when the session ended, so its findings are unknown. Re-run it on `supabase/migrations/*.sql`, fix anything real on `feat/production-schema`, then rebase `feat/cut-over` onto it.
+1. **Fix the security review's findings for C first**, on `feat/production-schema`, then rebase `feat/cut-over` onto it. The review found no way to reach another company's data, no way for a worker to become boss or read money, and no way to link someone else's login. It did find these, most important first:
+   - **M1 — `bump_usage`: the caller chooses the limit** and can invent new kinds. Keep the limits in the database (a `private.usage_limits` table, unknown kinds refused), or make it server-only.
+   - **M2 — faked "proven hours".** `complete_task` trusts the photo time and date it's sent and can be repeated with new photos, so hours can be inflated (the review took one client from 1.5 to 30). Also, `set_task_status` lets a worker undo a proven task.
+     - Limit `p_taken_at` and `p_local_date` to roughly now (the company's local day ±1).
+     - Refuse a second photo for the same task on the same local day.
+     - Refuse completing a one-off task that's already done.
+     - Only a boss may move a `done` task back to planned.
+   - **M3 — `guard_worker_update` checks `auth.jwt()->>'role'`, which fails open if the claim is ever missing.** Deny unless `current_setting('role', true) in ('service_role', 'none')`; the tests still pass with that.
+   - **LM1 — path checks accept `..` and empty file names.** Tighten the `photo_path` / `storage_path` checks and the storage upload policy to a regex: `^<company>/(plants|tasks/<task>)/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$`.
+   - **L1 — a boss can write `companies.plant_seq` and `created_by`,** and an invalid `timezone` breaks `client_stats`. Allow updates only to `name` and `timezone`, and validate the timezone.
+   - **L2 — `assign_plant_code` runs before the row-level security check.** A wrong `company_id` briefly locks another company's row and reveals whether that company exists. Check the company at the top of the trigger.
+   - **L3 — `set_project_crew` bugs:**
+     - A crew with no lead fails (`coalesce(w = p_lead_id, false)`).
+     - Check the site exists first.
+     - Cap the crew size.
+   - **L4 — no length limits on free text** (`species`, `zones`, `offers.body`, …). Add `check (length(...) <= N)` constraints.
+   - **L5 — tidy default grants:**
+     - revoke PUBLIC execute on `private` functions;
+     - revoke truncate, references and trigger from the API roles;
+     - revoke everything from `anon`.
+   - **L6 — "remove access" must clear `workers.user_id`,** not just archive the worker (D2).
+   - **To check on real Supabase (CI):**
+     - that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`;
+     - set `secure_password_change = true` in `config.toml`.
+   - The review's probe scripts are gone once the session's scratch folder is cleaned up. Add a regression check to `supabase/tests/rls.sql` for each fix.
 2. **Done so far in D1:**
    - `src/lib/supabase/types.ts`, hand-written for the new schema, since generating it needs Docker;
    - `src/lib/types.ts`: `Plant.code`, and `Worker.email` / `appRole` / `hasLogin` / `invitedAt`;
