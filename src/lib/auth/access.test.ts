@@ -39,6 +39,11 @@ describe("safeRedirect", () => {
       "https://evil.com",
       "javascript:alert(1)",
       "evil.com",
+      "/\t/evil.com", // browsers strip tabs and newlines: this becomes //evil.com
+      "/\n/evil.com",
+      "/\r/evil.com",
+      "/ /evil.com",
+      "/\u0000/evil.com",
       "",
       undefined,
       42,
@@ -48,6 +53,12 @@ describe("safeRedirect", () => {
 
   test("never sends a signed-in user back to the login page", () => {
     expect(safeRedirect("/login")).toBe("/");
+    expect(safeRedirect("/login?redirect=%2F")).toBe("/");
+  });
+
+  test("keeps an encoded path as it is", () => {
+    // Stays on this site: the router decodes it as a path, never as a host.
+    expect(safeRedirect("/%2F%2Fevil.com")).toBe("/%2F%2Fevil.com");
   });
 });
 

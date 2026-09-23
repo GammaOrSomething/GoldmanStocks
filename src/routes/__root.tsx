@@ -90,7 +90,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
      * This only decides where to send people; server functions check the session themselves.
      */
     beforeLoad: async ({ context, location }) => {
-      const viewer = await context.queryClient.ensureQueryData(viewerQuery);
+      // On the login page, ask again: a cached "signed in" could be a session that has since
+      // ended, and trusting it would bounce the user straight back out of the login page.
+      const viewer =
+        location.pathname === "/login"
+          ? await context.queryClient.fetchQuery({
+              ...viewerQuery,
+              staleTime: 0,
+            })
+          : await context.queryClient.ensureQueryData(viewerQuery);
       const target = resolveAccess(location, viewer);
       if (target) throw redirect({ href: target });
       return { viewer };

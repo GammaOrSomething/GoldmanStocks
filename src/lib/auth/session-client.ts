@@ -1,3 +1,5 @@
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+
 import { supabase } from "@/lib/supabase/client";
 
 /**
@@ -12,6 +14,10 @@ import { supabase } from "@/lib/supabase/client";
 export async function signIn(email: string, password: string): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (!error) return;
+  if (isAuthRetryableFetchError(error))
+    throw new Error(
+      "Couldn't reach the server. Check your connection and try again.",
+    );
   // Don't reveal whether the email exists; do pass on "too many attempts".
   throw new Error(
     error.status === 429

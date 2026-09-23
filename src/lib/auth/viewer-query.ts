@@ -8,4 +8,8 @@ export const viewerQuery = {
   queryKey: VIEWER_KEY,
   queryFn: () => getViewer(),
   staleTime: Number.POSITIVE_INFINITY,
+  // Every navigation waits on this, so fail fast rather than back off for seconds, and try even
+  // when the browser thinks it's offline (a worker's phone often does, wrongly).
+  retry: 1,
+  networkMode: "always" as const,
 };

@@ -123,6 +123,18 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
 
 **Decision made along the way: sign-in happens in the browser, not on the server.** The plan said to sign in through a server function. But Supabase limits sign-in attempts per IP address, and every server-side sign-in would come from our server's single address, so a few typos across a company could lock everyone out for a while. Signing in from the browser keeps each person on their own address. The session cookie is the same either way, so the server reads it exactly as before.
 
+**Review:** a code-review pass found one serious bug, fixed before moving on:
+
+- **Open redirect.** A crafted link like `/login?redirect=/<tab>/evil.com` passed the check, and browsers strip tabs, so a signed-in user would be sent to another site. The check now refuses any control character or space and parses the target as a URL. There are regression tests for tab, newline and carriage return, and the dev server now answers these links with a redirect to `/`.
+
+Also fixed:
+
+- **Cached sign-in state.** A remembered "signed in" answer could bounce a user whose session had ended off the login page and back to `/`. The login page now always asks the server again.
+- **Return page kept.** When several data requests fail at once, the first one's return page is kept instead of being overwritten.
+- **Cached page data cleared.** Signing in or out now also clears the router's cached page data. Otherwise, from D1 on, the next user on the same browser could briefly see the previous user's pages.
+- **Network errors reported as network errors,** not as "wrong password" or "signed out".
+- **Offline phones.** The sign-in check fails fast and doesn't wait for the phone to think it's online.
+
 **What it does not do yet:** there are no roles and no company scoping. Any signed-in account still sees everything in the demo database; that's D1. The worker app still has the "whose jobs to show" picker until D1 links accounts to workers.
 
 **Verified:**
@@ -145,6 +157,8 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
 
 **Now, before anything is merged**
 
+- [ ] **Turn off public sign-ups on the demo project:** Supabase → Authentication → Sign In / Providers → "Allow new users to sign up" off. With it on, anyone can create an account with the public key in the web app, and until D1 every account can read and change everything. Create logins yourself (Authentication → Add user) for anyone who needs the demo.
+
 - [ ] **Rotate the leaked credentials in the demo Supabase project:** database password, anon and service-role keys, and the OpenAI key. `docs/TODO.md` §7 says they were pasted into AI chats. Update them in `.env`, Vercel and Lovable, then redeploy.
 - [ ] Delete the stray auth user `kristers-local@rootline.demo` (Supabase → Authentication).
 
@@ -155,6 +169,7 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
   1. Open the site signed out: you land on the login page.
   2. Sign in with the demo account.
   3. Sign out from the office header menu, then from worker app → Settings.
+- [ ] Try signing in inside the Lovable editor's preview. Login cookies may not be sent inside its frame, which would make the login page keep coming back. If that happens, open the preview in its own tab; the deployed site isn't affected.
 
 **Before D1 (the switch to the new database)**
 

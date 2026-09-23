@@ -39,9 +39,10 @@ function Login() {
     setError(null);
     try {
       await signIn(email.trim(), password);
-      // Drop everything cached while signed out, including the "no viewer" answer the guard
-      // is holding, so the next page loads as the signed-in user.
+      // Drop everything cached before this sign-in (the "no viewer" answer the guard holds, and
+      // any page data from a previous user on this browser), so the next page loads fresh.
       queryClient.clear();
+      router.clearCache();
       await router.navigate({ href: safeRedirect(redirect), replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed.");

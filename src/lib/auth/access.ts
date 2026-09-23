@@ -20,12 +20,19 @@ export function isPublicPath(pathname: string): boolean {
  * A `?redirect=` target that is safe to follow: a path on this site. Anything that could point
  * elsewhere (`//host`, `/\host`, `https://…`, `javascript:…`) falls back to the home page, as
  * does the login page itself so a signed-in user can't loop.
+ *
+ * Control characters and spaces are refused outright: browsers delete tabs and newlines from
+ * URLs, so `/<tab>/evil.com` in a Location header becomes `//evil.com`, another site.
  */
 export function safeRedirect(target: unknown, fallback = "/"): string {
   if (typeof target !== "string") return fallback;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x20\x7f\\]/.test(target)) return fallback;
   if (!target.startsWith("/") || target.startsWith("//")) return fallback;
-  if (target.includes("\\")) return fallback;
-  if (target === LOGIN || target.startsWith(`${LOGIN}?`)) return fallback;
+  const base = "http://same-site.invalid";
+  const url = new URL(target, base);
+  if (url.origin !== base) return fallback;
+  if (url.pathname === LOGIN) return fallback;
   return target;
 }
 

@@ -1,4 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isAuthRetryableFetchError,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 
 import { loginHref, type Viewer } from "../auth/access";
@@ -26,7 +29,10 @@ const perRequest = new WeakMap<Request, Promise<Session>>();
 async function readSession(): Promise<Session> {
   const { getServerClient } = await import("../supabase/server");
   const db = getServerClient();
-  const { data } = await db.auth.getClaims();
+  const { data, error } = await db.auth.getClaims();
+  // Supabase unreachable while refreshing the token is an outage, not a sign-out: fail the
+  // request rather than sending a signed-in user to the login page.
+  if (error && isAuthRetryableFetchError(error)) throw error;
   const claims = data?.claims;
   const viewer: Viewer = claims
     ? { userId: claims.sub, email: String(claims.email ?? "") }

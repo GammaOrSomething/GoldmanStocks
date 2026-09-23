@@ -16,6 +16,7 @@ export function useSignOut() {
     try {
       await signOut();
       queryClient.clear();
+      router.clearCache();
       await router.navigate({ href: "/login", replace: true });
     } catch (error) {
       toast.error(
