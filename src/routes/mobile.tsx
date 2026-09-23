@@ -43,7 +43,7 @@ export const Route = createFileRoute("/mobile")({
           "Today's jobs and photo proof, sized for a phone in a work glove.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "viewport",
         content: "width=device-width, initial-scale=1, viewport-fit=cover",

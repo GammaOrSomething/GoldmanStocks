@@ -1,30 +1,39 @@
-# Routes
+# Goldman Stocks
 
-TanStack Start uses **file-based routing**. Every `.tsx` file in this directory
-defines a route. Do **not** create `src/pages/`, `src/routes/_app/index.tsx`, or
-`app/layout.tsx` — those are Next.js / Remix conventions. The only root layout
-is `src/routes/__root.tsx`.
+Crew planning for gardening and landscaping companies. The boss plans each worker's day around every
+plant's care schedule and the weather, and workers prove their work with photos from their phones.
 
-## Conventions
+- **Office app** (`/`, `/schedule`, `/projects`, `/plants`, `/clients`, `/workers`): the boss's
+  desktop views, plus a monthly photo report per client.
+- **Worker app** (`/mobile`): today's jobs, photo check-off, plant registration.
 
-| File | URL |
+Built with TanStack Start (React, file-based routes, server functions) and Supabase (Postgres, auth,
+storage). Weather comes from Open-Meteo, and the plan explanations and offer drafts from OpenAI.
+
+## Getting started
+
+```sh
+bun install
+cp .env.example .env   # fill in the values; see the comments in the file
+bun run dev            # http://localhost:8080
+```
+
+| Command | What it does |
 | --- | --- |
-| `index.tsx` | `/` |
-| `about.tsx` | `/about` |
-| `users/index.tsx` | `/users` |
-| `users/$id.tsx` | `/users/:id` (dynamic — bare `$`, no curly braces) |
-| `posts/{-$category}.tsx` | `/posts/:category?` (optional segment) |
-| `files/$.tsx` | `/files/*` (splat — read via `_splat` param, never `*`) |
-| `_layout.tsx` | layout route (renders children via `<Outlet />`) |
-| `__root.tsx` | app shell — wraps every page; preserve `<Outlet />` |
+| `bun run dev` | local dev server |
+| `bun test` | unit tests (`*.test.ts` next to the code) |
+| `bun run build` | production build (needs the `VITE_*` variables) |
+| `bun run lint` | eslint + prettier |
 
-`routeTree.gen.ts` is auto-generated. Don't edit it by hand.
+## Where things are
 
-## Deploying
+- `src/routes/`: pages. See [src/routes/README.md](src/routes/README.md) for the routing rules.
+- `src/lib/api/`: server functions that read and write the database.
+- `src/lib/server/`: server-only code (photos, reports, weather cache, LLM).
+- `supabase/`: database migrations and notes.
 
-See [docs/deploy-vercel.md](docs/deploy-vercel.md) for hosting on Vercel.
+## More
 
-## Picking up the work
-
-Start with [docs/HANDOFF.md](docs/HANDOFF.md) (what's built and how) and
-[docs/TODO.md](docs/TODO.md) (what's left, in order).
+- [docs/deploy-vercel.md](docs/deploy-vercel.md): hosting on Vercel.
+- [docs/HANDOFF.md](docs/HANDOFF.md): how the app is built. [docs/TODO.md](docs/TODO.md): open work.
+- This repo is connected to [Lovable](https://lovable.dev). See [AGENTS.md](AGENTS.md) before pushing.

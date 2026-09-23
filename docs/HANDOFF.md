@@ -50,7 +50,6 @@ No `bun` installed? `npx bun@1.4.2 <command>` works the same.
 | `SUPABASE_SERVICE_ROLE_KEY` | server only — photo storage, signed URLs |
 | `DEMO_BOSS_EMAIL`, `DEMO_BOSS_PASSWORD` | the Supabase user the app auto-signs-in as (`src/lib/api/session.ts`). Any auth user works — the RLS policy (migration 0002) gives every signed-in user full access. Get the shared demo login from the team, or create your own user in Supabase → Authentication.  |
 | `OPENAI_API_KEY` | plan explanation + drafted offers (`OPENAI_MODEL` optional, default `gpt-4o`) |
-| `LOVABLE_PREVIEW_HOST` | optional, local dev only (lets `/__l5e/` Lovable assets load) |
 
 ## What was built
 

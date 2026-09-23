@@ -5,17 +5,7 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { loadEnv, type Plugin } from "vite";
-
-// Lovable-hosted assets (the logo) live under /__l5e/. Its dev proxy only forwards them when
-// LOVABLE_PREVIEW_HOST is in process.env, which Lovable's sandbox sets but a local `bun run dev`
-// doesn't — so read it from .env here, leaving Lovable's own value alone.
-const previewHost = loadEnv("development", process.cwd(), "LOVABLE_")[
-  "LOVABLE_PREVIEW_HOST"
-];
-if (previewHost && !process.env["LOVABLE_PREVIEW_HOST"]) {
-  process.env["LOVABLE_PREVIEW_HOST"] = previewHost;
-}
+import type { Plugin } from "vite";
 
 /**
  * Fails the build when a browser-side env var is missing, instead of shipping a bundle with
@@ -42,7 +32,7 @@ const requireBrowserEnv: Plugin = {
           "Vite inlines VITE_* values into the bundle at build time, so the build itself must be able to read them:\n" +
           "  - locally: copy .env.example to .env and fill in the values from the Supabase dashboard (Project Settings → API)\n" +
           "  - on Vercel: Project Settings → Environment Variables, as a plain/Config variable on Production and Preview.\n" +
-          "    A \"Sensitive\" variable is NOT readable at build time and will land here even though it looks set.",
+          '    A "Sensitive" variable is NOT readable at build time and will land here even though it looks set.',
       );
     }
   },

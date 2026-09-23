@@ -22,7 +22,6 @@ unaffected and still target Cloudflare.
    | `OPENAI_API_KEY` | **yes** | plan explanation and offer drafts |
    | `OPENAI_MODEL` | no | optional, defaults to `gpt-4o` |
 
-   `LOVABLE_PREVIEW_HOST` is only for local development — don't set it on Vercel.
 3. **Deploy.** Every push to the connected branch redeploys; pull requests get preview URLs.
 
 ## Notes
