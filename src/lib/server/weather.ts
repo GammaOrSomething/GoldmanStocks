@@ -33,7 +33,7 @@ export function memoryWeatherCache(): WeatherCache {
   };
 }
 
-/** The `weather_cache` table. Pass track A's service-role client at integration. */
+/** The `weather_cache` table. Needs the service-role client: signed-in users can't reach it. */
 export function supabaseWeatherCache(db: SupabaseClient): WeatherCache {
   return {
     async get(key) {

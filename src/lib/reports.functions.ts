@@ -7,17 +7,10 @@ import {
 } from "@/lib/server/reports";
 
 /**
- * Server-function wrapper for the monthly client report.
- *
- * It uses the service-role client rather than the request's session because the report signs
- * URLs into the private `task-photos` bucket, which has no storage policies. As in
- * `photos.functions.ts`, the client is imported inside the handler: `@/lib/supabase/server` is
- * marked server-only, and a static import would pull it into the browser's module graph.
+ * Server-function wrapper for the monthly client report. Boss-only, and on the caller's own
+ * session: row-level security keeps it to their company, and the storage policies let a member
+ * sign their company's photos.
  */
 export const clientReport = createServerFn({ method: "GET" })
   .validator((input: ClientReportInput) => ClientReportInput.parse(input))
-  .handler(async ({ data }) => {
-    await requireBoss();
-    const { getAdminClient } = await import("@/lib/supabase/server");
-    return clientReportImpl(getAdminClient(), data);
-  });
+  .handler(async ({ data }) => clientReportImpl(await requireBoss(), data));

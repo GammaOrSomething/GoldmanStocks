@@ -8,10 +8,7 @@ import { useRefreshData } from "@/hooks/use-data";
 import { savePlant, type PlantInput } from "@/lib/api/plants";
 import { getPref } from "@/lib/phone-prefs";
 import { setCaptureHandler } from "@/lib/photo-store";
-import {
-  attachPlantPhoto,
-  createPlantPhotoUpload,
-} from "@/lib/plants.functions";
+import { createPlantPhotoUpload } from "@/lib/plants.functions";
 import { supabase } from "@/lib/supabase/client";
 import { useActiveWorker, useWorkerProjects } from "@/lib/worker-store";
 
@@ -127,7 +124,7 @@ function NewPlant() {
       if (!photoPath) throw new Error("Take a photo of the plant first");
       if (!common.trim()) throw new Error("Give the plant a name");
       if (!projectId) throw new Error("Pick the site it's on");
-      const { id } = await savePlant({
+      const { code } = await savePlant({
         data: {
           projectId,
           common: common.trim(),
@@ -138,15 +135,15 @@ function NewPlant() {
           nextTask: "",
           nextCareDate: "",
           ...(coords ?? {}),
+          photoPath,
         },
       });
-      await attachPlantPhoto({ data: { plantId: id, path: photoPath } });
-      return id;
+      return code;
     },
-    onSuccess: async (id) => {
+    onSuccess: async (code) => {
       await refresh();
       toast.success(
-        `${common.trim()} registered as ${id} on ${project?.name ?? "the site"}`,
+        `${common.trim()} registered as ${code} on ${project?.name ?? "the site"}`,
       );
       void navigate({ to: "/mobile/plants" });
     },

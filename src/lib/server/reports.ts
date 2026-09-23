@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod/v4";
 
+import type { Database } from "@/lib/supabase/types";
 import { MONTH_RE, monthLabel, monthRangeUtc } from "@/lib/month";
 import { localDate, localTime } from "@/lib/weather";
 import { PHOTO_BUCKET } from "./photos";
@@ -9,22 +10,17 @@ import { PHOTO_BUCKET } from "./photos";
  * The monthly photo report a boss sends a client: one row per photo uploaded that month, with
  * the plant it was taken against, the work done, who did it and when.
  *
- * Like the rest of `src/lib/server/`, every function takes the Supabase client first. Signing
- * storage URLs needs the service-role client — the bucket is private and has no storage
- * policies — so `src/lib/reports.functions.ts` hands over the admin one.
+ * Like the rest of `src/lib/server/`, every function takes the Supabase client first. It is the
+ * boss's own session (`src/lib/reports.functions.ts`), so row-level security keeps the report to
+ * their company and the storage policies let them sign its photos.
  *
- * Three things worth knowing before changing this:
+ * Two things worth knowing before changing this:
  *
- * 1. `tasks` has no date. It is a recurring weekly template (day 0-6 + hour), so the only real
+ * 1. Most tasks have no date. A weekly task is a template (day 0-6 + hour), so the only real
  *    date on finished work is `task_photos.taken_at`. Every row here is driven by the photo,
  *    which is also why a month with no photos is a normal empty report rather than an error.
- * 2. `tasks.plant_id` is nullable, so `plantName` can be null; the task's zone (`tasks.site`)
- *    is what always locates the work.
- * 3. The report runs on the service-role client with a `clientId` straight off the URL, so it
- *    bypasses RLS. The caller must be signed in, and while there is one company in the database
- *    that's enough, but it is the seam to cut when real tenancy arrives (docs/production/):
- *    `signPhotoUrls` is separate so the data queries can move to `getAuthedClient()` and only
- *    the signing stays on the admin client.
+ * 2. `tasks.plant_id` is nullable, so `plantName` can be null; the task's zone is what always
+ *    locates the work.
  */
 
 export const ClientReportInput = z.object({
@@ -117,14 +113,13 @@ const SIGN_TTL = 60 * 60;
 /**
  * Sign every photo in the report in as few calls as possible.
  *
- * Deliberately not `getTaskPhotoUrl` (`./photos`), which signs one task's *latest* photo per
- * round trip: for a report that would be one HTTP call per photo, and it would hide the second
- * and later visits of every recurring task — the exact thing this report exists to show.
+ * Batched rather than one `createSignedUrl` per photo: a report can hold every visit of every
+ * recurring task in the month, which is the exact thing it exists to show.
  *
  * Storage trouble degrades the report rather than failing it.
  */
 export async function signPhotoUrls(
-  db: SupabaseClient,
+  db: SupabaseClient<Database>,
   paths: string[],
 ): Promise<Map<string, string>> {
   const urls = new Map<string, string>();
@@ -153,10 +148,12 @@ export async function signPhotoUrls(
  * Returns null for an unknown client so the route can `throw notFound()`.
  */
 export async function clientReport(
-  db: SupabaseClient,
+  db: SupabaseClient<Database>,
   input: ClientReportInput,
 ): Promise<ClientReport | null> {
   const { clientId, month } = ClientReportInput.parse(input);
+  // A malformed id in the URL is an unknown client, not a database error.
+  if (!z.uuid().safeParse(clientId).success) return null;
   const { startUtc, endUtc } = monthRangeUtc(month);
 
   const { data: client, error: clientError } = await db
@@ -186,7 +183,7 @@ export async function clientReport(
 
   const { data: taskRows, error: taskError } = await db
     .from("tasks")
-    .select("id, title, kind, site, plant_id, worker_id, project_id")
+    .select("id, title, kind, zone, plant_id, worker_id, project_id")
     .in(
       "project_id",
       sites.map((s) => s.id),
@@ -210,8 +207,6 @@ export async function clientReport(
   if (!photos.length) return empty;
 
   // Only now is it worth resolving names: a month with no photos needs none of this.
-  // plants.lat/lng are deliberately not selected — migration 0003 is unapplied and PostgREST
-  // answers with 42703 if you ask for them.
   const plantIds = [
     ...new Set(tasks.flatMap((t) => (t.plant_id ? [t.plant_id] : []))),
   ];
@@ -252,7 +247,7 @@ export async function clientReport(
         takenTime: localTime(photo.taken_at),
         dayLabel: dayLabel(takenOn),
         siteName: siteNameById.get(task.project_id) ?? "",
-        area: task.site,
+        area: task.zone,
         plantName: task.plant_id
           ? (plantNameById.get(task.plant_id) ?? null)
           : null,

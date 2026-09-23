@@ -10,6 +10,11 @@ import {
 
 // Server functions only: safe to import from routes. The handler (and everything it
 // imports from src/lib/server/) runs on the server; the browser gets an RPC stub.
+//
+// Sites are read on the caller's session. The forecast cache is shared by every company and
+// has no row-level policies, so only the service-role client can use it; it holds nothing but
+// forecasts keyed by rounded coordinates. The client is imported inside the handler because
+// `@/lib/supabase/server` is server-only.
 
 export type { WeekWeather } from "@/lib/server/weather";
 
@@ -21,6 +26,7 @@ export const getWeekWeather = createServerFn({ method: "GET" }).handler(
   async () => {
     const now = new Date();
     const db = await getAuthedClient();
+    const { getAdminClient } = await import("@/lib/supabase/server");
     const { data: sites, error } = await db
       .from("projects")
       .select("id, lat, lng")
@@ -33,7 +39,7 @@ export const getWeekWeather = createServerFn({ method: "GET" }).handler(
         lat: Number(p.lat),
         lng: Number(p.lng),
       })),
-      supabaseWeatherCache(db),
+      supabaseWeatherCache(getAdminClient()),
       fetchOpenMeteoJson,
       now,
     );

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getAuthedClient } from "@/lib/api/session";
+import { requireMember } from "@/lib/api/session";
 
 import {
   completeTask as completeTaskImpl,
@@ -10,13 +10,8 @@ import {
 } from "@/lib/server/photos";
 
 /**
- * Server-function wrappers for B5's photo proof, the pieces `src/lib/server/photos.ts` left for
- * track A's client to supply.
- *
- * These use the service-role client rather than the request's session: the bucket is private with
- * no storage policies, so only the service role can mint a signed upload URL. It is imported
- * inside the handler because `@/lib/supabase/server` is marked server-only — a static import
- * would put it in the client's module graph.
+ * Server-function wrappers for photo proof. They run on the caller's own session, so the
+ * storage policies and `complete_task` decide what a worker may do.
  */
 
 /**
@@ -29,9 +24,8 @@ import {
 export const createPhotoUploadUrl = createServerFn({ method: "POST" })
   .validator((input: PhotoUploadInput) => PhotoUploadInput.parse(input))
   .handler(async ({ data }) => {
-    await getAuthedClient(); // signed-in callers only
-    const { getAdminClient } = await import("@/lib/supabase/server");
-    const upload = await createPhotoUploadUrlImpl(getAdminClient(), data);
+    const { db, member } = await requireMember();
+    const upload = await createPhotoUploadUrlImpl(db, member.companyId, data);
     return { ...upload, bucket: PHOTO_BUCKET };
   });
 
@@ -39,7 +33,6 @@ export const createPhotoUploadUrl = createServerFn({ method: "POST" })
 export const completeTask = createServerFn({ method: "POST" })
   .validator((input: CompleteTaskInput) => CompleteTaskInput.parse(input))
   .handler(async ({ data }) => {
-    await getAuthedClient(); // signed-in callers only
-    const { getAdminClient } = await import("@/lib/supabase/server");
-    return completeTaskImpl(getAdminClient(), data);
+    const { db, member } = await requireMember();
+    return completeTaskImpl(db, member.companyId, data);
   });

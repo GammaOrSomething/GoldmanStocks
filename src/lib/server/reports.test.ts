@@ -2,6 +2,8 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { Database } from "@/lib/supabase/types";
+
 import { monthRangeUtc } from "@/lib/month";
 import {
   ClientReportInput,
@@ -22,7 +24,9 @@ const untouchable = new Proxy(
       throw new Error("database should not be reached");
     },
   },
-) as SupabaseClient;
+) as SupabaseClient<Database>;
+
+const C1 = "3f2e1d0c-9b8a-4c7d-8e6f-5a4b3c2d1e0f";
 
 describe("input validation", () => {
   test("a month is YYYY-MM or it is not a month", () => {
@@ -43,8 +47,14 @@ describe("input validation", () => {
 
   test("a bad month is refused before any DB call", async () => {
     await expect(
-      clientReport(untouchable, { clientId: "c1", month: "2026-13" }),
+      clientReport(untouchable, { clientId: C1, month: "2026-13" }),
     ).rejects.toThrow();
+  });
+
+  test("a malformed client id is an unknown client, found without a DB call", async () => {
+    expect(
+      await clientReport(untouchable, { clientId: "c1", month: "2026-09" }),
+    ).toBeNull();
   });
 });
 
@@ -125,7 +135,7 @@ function stubDb(tables: Record<string, Row[]>, recorded: Recorded) {
         }),
       }),
     },
-  } as unknown as SupabaseClient;
+  } as unknown as SupabaseClient<Database>;
 }
 
 const photoRow = (id: string, takenAt: string) => ({
@@ -141,7 +151,7 @@ const photoRow = (id: string, takenAt: string) => ({
 function septemberTables(photos: Row[]) {
   return {
     clients: [
-      { id: "c1", name: "Ülemiste", city: "Tallinn", contact: "Anu Saar" },
+      { id: C1, name: "Ülemiste", city: "Tallinn", contact: "Anu Saar" },
     ],
     projects: [{ id: "p1", name: "Ülemiste Business Park" }],
     tasks: [
@@ -149,7 +159,7 @@ function septemberTables(photos: Row[]) {
         id: "t1",
         title: "Weekend watering",
         kind: "Watering",
-        site: "North courtyard",
+        zone: "North courtyard",
         plant_id: null,
         worker_id: "w1",
         project_id: "p1",
@@ -172,7 +182,7 @@ describe("weekend photos always reach the report", () => {
       recorded,
     );
 
-    const report = await clientReport(db, { clientId: "c1", month: "2026-09" });
+    const report = await clientReport(db, { clientId: C1, month: "2026-09" });
     const labels = report!.rows.map((r) => r.dayLabel);
     expect(labels).toContain("Sat 19 Sep");
     expect(labels).toContain("Sun 20 Sep");
@@ -189,7 +199,7 @@ describe("weekend photos always reach the report", () => {
       recorded,
     );
 
-    const report = await clientReport(db, { clientId: "c1", month: "2026-09" });
+    const report = await clientReport(db, { clientId: C1, month: "2026-09" });
     expect(report!.rows.map((r) => r.dayLabel)).toEqual([
       "Tue 15 Sep",
       "Sat 19 Sep",
@@ -202,7 +212,7 @@ describe("weekend photos always reach the report", () => {
       septemberTables([photoRow("sat", "2026-09-19T08:15:00+03:00")]),
       recorded,
     );
-    await clientReport(db, { clientId: "c1", month: "2026-09" });
+    await clientReport(db, { clientId: C1, month: "2026-09" });
 
     const onPhotos = recorded.filter((r) => r.table === "task_photos");
     expect(onPhotos.map((r) => r.op).sort()).toEqual(["gte", "in", "lt"]);

@@ -42,6 +42,17 @@ export const projectPlants = createServerFn({ method: "GET" })
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+/**
+ * Where `createPlantPhotoUpload` put the picture: <company>/plants/<name>.<ext>. The database
+ * also checks the folder is the plant's own company.
+ */
+const plantPhotoPath = z
+  .string()
+  .regex(
+    /^[0-9a-f-]{36}\/plants\/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$/,
+    "That photo was not uploaded for a plant",
+  );
+
 export const PlantInput = z.object({
   /** omit to register a new plant */
   id: z.uuid().optional(),
@@ -57,17 +68,20 @@ export const PlantInput = z.object({
   /** where it stands — from the phone's GPS. Without it a new plant goes to the site's centre. */
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+  /** the uploaded picture; omit to keep the current one */
+  photoPath: plantPhotoPath.optional(),
 });
 export type PlantInput = z.infer<typeof PlantInput>;
 
 /**
  * Register or update a plant. With GPS it's stored at its real position and also placed on
  * the site plan (x/y); without, a new plant goes to the middle of the plan. The database gives
- * a new plant its id and its readable code (PL-0001, …).
+ * a new plant its id and its readable code (PL-0001, …). The picture is saved in the same
+ * write, since only a boss may change a plant afterwards.
  */
 export const savePlant = createServerFn({ method: "POST" })
   .validator(PlantInput)
-  .handler(async ({ data }): Promise<{ id: string }> => {
+  .handler(async ({ data }): Promise<{ id: string; code: string }> => {
     const db = await getAuthedClient();
     const { data: project, error: projectError } = await db
       .from("projects")
@@ -98,19 +112,25 @@ export const savePlant = createServerFn({ method: "POST" })
       next_care: data.nextCareDate || null,
       ...(onPlan ?? {}),
       ...(gps ?? {}),
+      ...(data.photoPath ? { photo_path: data.photoPath } : {}),
     };
 
     if (data.id) {
-      const { error } = await db.from("plants").update(row).eq("id", data.id);
+      const { data: updated, error } = await db
+        .from("plants")
+        .update(row)
+        .eq("id", data.id)
+        .select("id, code")
+        .single();
       if (error) throw new Error(error.message);
-      return { id: data.id };
+      return updated;
     }
 
     const { data: created, error } = await db
       .from("plants")
       .insert({ x: 50, y: 50, ...row })
-      .select("id")
+      .select("id, code")
       .single();
     if (error) throw new Error(error.message);
-    return { id: created.id };
+    return created;
   });

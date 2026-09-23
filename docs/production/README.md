@@ -8,17 +8,17 @@ each change did, what you need to do by hand, and what comes next. It is updated
 
 ## ▶ Pick up here (next session)
 
-_Updated at the end of the second 23 Sep 2026 session._
+_Updated during the third 23 Sep 2026 session._
 
 **Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
 
-| Branch                   | Contains      | State                                                                     |
-| ------------------------ | ------------- | ------------------------------------------------------------------------- |
-| `chore/remove-demo-data` | A1            | done                                                                      |
-| `chore/remove-dead-code` | A2 + this doc | done                                                                      |
-| `feat/real-login`        | B             | done, reviewed, fixes in                                                  |
-| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass      |
-| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles and signup pages done; all checks pass |
+| Branch                   | Contains      | State                                                                             |
+| ------------------------ | ------------- | --------------------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                              |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                              |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                                          |
+| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass              |
+| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles, signup pages and photos done; all checks pass |
 
 **To resume D1** (`git checkout feat/cut-over`):
 
@@ -41,23 +41,22 @@ _Updated at the end of the second 23 Sep 2026 session._
      - the AI calls spend the daily allowance (`src/lib/api/usage.ts`);
      - `access.ts` sends a person without a company to `/onboarding`, keeps a worker in `/mobile`, and lets anyone open `/signup`, with tests.
    - **New pages:** `/signup`, `/onboarding` (calls `create_company`) and `/auth/confirm`, which verifies only when the button is pressed. They share `src/components/AuthCard.tsx`.
-   - 153 unit tests, typecheck, lint and build pass.
+   - **Photos** (see [Photos, in D1](#photos-in-d1)):
+     - task proof goes to `<company>/tasks/<task>/…` and is recorded by one `complete_task` call;
+     - a plant's picture goes to `<company>/plants/<uuid>` and is saved as `plants.photo_path` in the same insert as the plant (`attachPlantPhoto` is gone);
+     - the photo, plant-photo and report functions run on the user's own session; only the weather cache still uses the admin key.
+   - 161 unit tests, typecheck, lint and build pass, and the 86 database checks.
 2. **Next, in this order:**
-   1. **Photos:**
-      - `src/lib/server/photos.ts`: paths become `<company>/tasks/<task>/…`, and completion calls the `complete_task` function.
-      - `plant-photos.ts`: `<company>/plants/<uuid>`, saved as `plants.photo_path`; delete `attachPlantPhoto`.
-      - Switch the photo, plant and report functions from the admin key to the user's own session.
-      - The weather cache uses the admin client.
-   2. **Worker app:**
+   1. **Worker app:**
       - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
       - Remove the "whose jobs to show" picker.
       - Language changes go through `update_my_profile` (the server function `updateMyLanguage` exists).
       - Only bosses see "Full site".
-   3. **Office:**
+   2. **Office:**
       - Remove "Open in worker app" from `/workers`, and show the email and login status.
       - Show `plant.code` instead of the id in `PlantTable`, `LeafletMap` and `PlantDialog`.
       - A bad id in a URL shows "not found" (the server side already returns null).
-   4. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
+   3. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
 3. **Also still to do:**
    - **Remove access (D2):** it must clear `workers.user_id`, not just archive the worker.
    - **Weekly tasks keep their status from week to week.** Once a weekly task is proven, it shows as done in every later week. The app did this before too. The database now limits proof to one per week, so a per-week status is the natural follow-up; decide it in D1's worker-app step.
@@ -293,6 +292,27 @@ Also fixed:
   - new functions aren't executable by everyone by default.
 - **86 security checks pass** (38 new, one per fix).
 
+### Photos, in D1
+
+**What changed:**
+
+- **Task proof** (`src/lib/server/photos.ts`):
+  - Upload paths are `<company>/tasks/<task>/<uuid>.<ext>`. The upload URL is signed with the worker's own session, so the storage policy refuses a task that isn't theirs.
+  - Finishing a task is one `complete_task` database call, which checks everything in one transaction. The app's own check that the photo sits in this company's folder for this task stays, so a wrong path fails before any request.
+  - The unused `getTaskPhotoUrl` is gone; the report signs photos in batches.
+- **Plant pictures** (`src/lib/server/plant-photos.ts`):
+  - Uploaded to `<company>/plants/<uuid>.<ext>`.
+  - `savePlant` takes the path as `photoPath` and stores it in the same insert. It has to: only a boss may change a plant afterwards, so the old "save, then attach the photo" step would fail for a worker.
+  - `savePlant` also returns the plant's code, so the worker app's "registered as" message shows `PL-0001` rather than a uuid.
+  - `getPlantPhotoUrl` reads `plants.photo_path` instead of listing the folder.
+- **Client report** (`src/lib/server/reports.ts`):
+  - Runs on the boss's own session.
+  - It still read `tasks.site`, which is `zone` in the new schema, so it would have failed on the new project. Its client is now typed against the schema, so the compiler catches that kind of mistake.
+  - A malformed client id in the URL now shows "not found".
+- **Weather:** the shared forecast cache uses the admin client, since signed-in users can't reach `weather_cache`. The sites are still read on the user's session.
+
+**Verified:** 161 unit tests (8 new: the `complete_task` call and its errors, company and task folders, uuid ids, plant photo paths, the report's bad id), typecheck, lint, build, and the 86 database checks.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -344,6 +364,7 @@ The full technical plan (schema, access rules, file-by-file changes, risks) is i
 
 ## Known limitations
 
+- **The work date uses the hardcoded company time zone.** `completeTask` works out the local date with `COMPANY_TZ` (Tallinn), not `companies.timezone`. `complete_task` accepts ±1 day around the company's today, so this only matters for a company far from Tallinn. Switching to the company's zone is in E.
 - **Row limit on client counts:**
   - The problem: client counts are calculated in the app from full table reads, and Supabase returns at most 1,000 rows per query. Past 1,000 plants or monthly proof photos, the counts would silently come out low.
   - Now: harmless at demo size.
