@@ -4,7 +4,79 @@ This is the running record of turning the hackathon demo into a real product: wh
 each change did, what you need to do by hand, and what comes next. It is updated with every PR.
 
 - **Started:** 23 Sep 2026
-- **Current step:** PR D1, switch the app to the new project (A1–C are done)
+- **Current step:** PR D1, switch the app to the new project (A1–C are done). **Start at [Pick up here](#-pick-up-here-next-session).**
+
+## ▶ Pick up here (next session)
+
+_Written at the end of the 23 Sep 2026 session._
+
+**Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
+
+| Branch                   | Contains      | State                                                                                       |
+| ------------------------ | ------------- | ------------------------------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                                        |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                                        |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                                                    |
+| `feat/production-schema` | C             | done, 48 database checks pass; **security review was still running when the session ended** |
+| `feat/cut-over`          | D1, started   | **in progress**: one WIP commit, and the typecheck fails on purpose until D1 is finished    |
+
+**To resume D1** (`git checkout feat/cut-over`):
+
+1. **Security review of C first.** It was still running when the session ended, so its findings are unknown. Re-run it on `supabase/migrations/*.sql`, fix anything real on `feat/production-schema`, then rebase `feat/cut-over` onto it.
+2. **Done so far in D1:**
+   - `src/lib/supabase/types.ts`, hand-written for the new schema, since generating it needs Docker;
+   - `src/lib/types.ts`: `Plant.code`, and `Worker.email` / `appRole` / `hasLogin` / `invitedAt`;
+   - `src/lib/api/mappers.ts`, rewritten, with tests in `mappers.test.ts` (7 passing).
+3. **Next, in this order.** `bunx tsc --noEmit -p .` lists what still points at the old schema.
+   1. `src/lib/api/{clients,workers,projects,plants,tasks}.ts`:
+      - Fetch `project_workers` and the terms tables, and pass them to the mappers.
+      - Use `client_stats` for the client numbers.
+      - Drop `ids.ts` (the database makes ids and plant codes).
+      - `saveSite` calls `set_project_crew` and upserts `project_terms`; `saveClient` upserts `client_terms`.
+      - Real zod validators in `tasks.ts`.
+      - A worker's status change goes through `set_task_status`.
+      - Order by name, code or date, not by id.
+      - `site` in the app is `zone` in the database; `role` is `job_title`.
+   2. Test fixtures: add `code`, `email`, `appRole`, `hasLogin` in `src/lib/__fixtures__/week.ts` and `planner.test.ts`.
+   3. **Session and roles:**
+      - `getSessionViewer` in `src/lib/api/session.ts` also returns `workerId`, `companyId`, `companyName`, `role` and `name`.
+      - Add a boss-only check for office writes, offers, the AI, geocoding and the report.
+      - `access.ts` gains three rules: no company → `/onboarding`; a worker on an office page → `/mobile`; `/signup` is public. Tests first.
+   4. **New pages:** `/signup`, `/onboarding` (calls `create_company`), and `/auth/confirm` (a button that calls `verifyOtp`, then goes to the checked `next`).
+   5. **Photos:**
+      - `src/lib/server/photos.ts`: paths become `<company>/tasks/<task>/…`, and completion calls the `complete_task` function.
+      - `plant-photos.ts`: `<company>/plants/<uuid>`, saved as `plants.photo_path`; delete `attachPlantPhoto`.
+      - Switch the photo, plant and report functions from the admin key to the user's own session.
+      - The weather cache uses the admin client.
+      - `bump_usage` limits the AI calls.
+   6. **Worker app:**
+      - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
+      - Remove the "whose jobs to show" picker.
+      - Language changes go through `update_my_profile`.
+      - Only bosses see "Full site".
+   7. **Office:**
+      - Remove "Open in worker app" from `/workers`, and show the email and login status.
+      - Show `plant.code` instead of the id in `PlantTable`, `LeafletMap` and `PlantDialog`.
+      - A bad id in a URL shows "not found".
+   8. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
+4. **Then:** review, update this log, and commit. D2 (invites and password reset) and E follow; see [Next steps](#next-steps).
+
+**Checks to run:**
+
+- `bun run test`
+- `bunx tsc --noEmit -p .`
+- `bun run lint`
+- `bun run build`
+- `bun run test:rls -- --stub` (no Docker needed; uses the local Postgres)
+
+With Docker: `bun run db:start`, then `bun run test:rls`, then run the app against the local Supabase for the end-to-end check.
+
+**Blocked on you:** see [Your checklist](#your-checklist-things-only-you-can-do). The most important items:
+
+- turn off public sign-ups on the demo project;
+- rotate the leaked keys;
+- install Docker, or accept that D1 can only be fully tested against the new Supabase project;
+- set up SMTP before D1/D2 go live.
 
 ## Where we're going
 
@@ -36,7 +108,7 @@ signed-in user read and write every row. The data came from a 700-line mock file
 | A2   | Remove dead code and template leftovers                           | Done        | `chore/remove-dead-code` (on top of A1) |
 | B    | Real login (still on the demo database)                           | Done        | `feat/real-login` (on top of A2)        |
 | C    | New database schema, Supabase CLI, security tests                 | Done        | `feat/production-schema` (on top of B)  |
-| D1   | Switch the app to the new project: signup, roles, company scoping | Not started |                                         |
+| D1   | Switch the app to the new project: signup, roles, company scoping | In progress |                                         |
 | D2   | Worker invites and password reset                                 | Not started |                                         |
 | E    | End-to-end tests, CAPTCHA, final docs                             | Not started |                                         |
 

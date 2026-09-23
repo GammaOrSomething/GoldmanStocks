@@ -1,9 +1,10 @@
-// Database types for the Rootline Supabase project.
+// Database types for the production schema (supabase/migrations/).
 //
-// Generated from the LIVE schema via PostgREST's OpenAPI spec, because the schema was
-// applied directly to the database rather than through supabase/migrations, and
-// `supabase gen types` needs Docker (not installed here). Regenerate after any schema
-// change: fetch /rest/v1/ with `Accept: application/openapi+json`.
+// Written by hand in the shape `supabase gen types typescript` produces, because generating
+// needs Docker. With Docker available, `bun run db:types` regenerates this file from the local
+// database; do that after any schema change and commit the result. Keep it in step with the
+// migrations until then: `bun run test:rls -- --stub` checks the schema, and `tsc` checks the
+// app against this file.
 
 export type Json =
   | string
@@ -13,12 +14,330 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+type AppRole = Database["public"]["Enums"]["app_role"];
+type WorkerLanguage = Database["public"]["Enums"]["worker_language"];
+type HealthStatus = Database["public"]["Enums"]["health_status"];
+type ClientHealth = Database["public"]["Enums"]["client_health"];
+type PlantKind = Database["public"]["Enums"]["plant_kind"];
+type TaskKind = Database["public"]["Enums"]["task_kind"];
+type TaskStatus = Database["public"]["Enums"]["task_status"];
+type OfferStatus = Database["public"]["Enums"]["offer_status"];
+
 export type Database = {
   public: {
     Tables: {
+      companies: {
+        Row: {
+          id: string;
+          name: string;
+          timezone: string;
+          plant_seq: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          timezone?: string;
+          plant_seq?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          timezone?: string;
+        };
+        Relationships: [];
+      };
+      workers: {
+        Row: {
+          id: string;
+          company_id: string;
+          user_id: string | null;
+          email: string | null;
+          name: string;
+          job_title: string;
+          app_role: AppRole;
+          language: WorkerLanguage;
+          color: string;
+          invited_at: string | null;
+          archived_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string;
+          user_id?: string | null;
+          email?: string | null;
+          name: string;
+          job_title?: string;
+          app_role?: AppRole;
+          language?: WorkerLanguage;
+          color?: string;
+          invited_at?: string | null;
+          archived_at?: string | null;
+        };
+        Update: {
+          user_id?: string | null;
+          email?: string | null;
+          name?: string;
+          job_title?: string;
+          app_role?: AppRole;
+          language?: WorkerLanguage;
+          color?: string;
+          invited_at?: string | null;
+          archived_at?: string | null;
+        };
+        Relationships: [];
+      };
+      clients: {
+        Row: {
+          id: string;
+          company_id: string;
+          name: string;
+          city: string;
+          contact: string;
+          health: ClientHealth;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string;
+          name: string;
+          city?: string;
+          contact?: string;
+          health?: ClientHealth;
+        };
+        Update: {
+          name?: string;
+          city?: string;
+          contact?: string;
+          health?: ClientHealth;
+        };
+        Relationships: [];
+      };
+      client_terms: {
+        Row: {
+          client_id: string;
+          company_id: string;
+          monthly_value: number;
+          contract_until: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          client_id: string;
+          company_id?: string;
+          monthly_value?: number;
+          contract_until?: string | null;
+        };
+        Update: {
+          monthly_value?: number;
+          contract_until?: string | null;
+        };
+        Relationships: [];
+      };
+      projects: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          name: string;
+          city: string;
+          address: string;
+          lat: number;
+          lng: number;
+          zones: string[];
+          visits_per_month: number;
+          status: HealthStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string;
+          client_id: string;
+          name: string;
+          city?: string;
+          address?: string;
+          lat: number;
+          lng: number;
+          zones?: string[];
+          visits_per_month?: number;
+          status?: HealthStatus;
+        };
+        Update: {
+          client_id?: string;
+          name?: string;
+          city?: string;
+          address?: string;
+          lat?: number;
+          lng?: number;
+          zones?: string[];
+          visits_per_month?: number;
+          status?: HealthStatus;
+        };
+        Relationships: [];
+      };
+      project_terms: {
+        Row: {
+          project_id: string;
+          company_id: string;
+          monthly_value: number;
+          contract_until: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          project_id: string;
+          company_id?: string;
+          monthly_value?: number;
+          contract_until?: string | null;
+        };
+        Update: {
+          monthly_value?: number;
+          contract_until?: string | null;
+        };
+        Relationships: [];
+      };
+      project_workers: {
+        Row: {
+          project_id: string;
+          worker_id: string;
+          company_id: string;
+          is_lead: boolean;
+        };
+        Insert: {
+          project_id: string;
+          worker_id: string;
+          company_id?: string;
+          is_lead?: boolean;
+        };
+        Update: {
+          is_lead?: boolean;
+        };
+        Relationships: [];
+      };
+      plants: {
+        Row: {
+          id: string;
+          company_id: string;
+          code: string;
+          project_id: string;
+          species: string;
+          common: string;
+          kind: PlantKind;
+          zone: string;
+          status: HealthStatus;
+          last_care: string | null;
+          next_care: string | null;
+          next_task: string | null;
+          x: number;
+          y: number;
+          lat: number | null;
+          lng: number | null;
+          photo_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string;
+          /** Set by the database; anything passed here is replaced. */
+          code?: string;
+          project_id: string;
+          species?: string;
+          common: string;
+          kind: PlantKind;
+          zone?: string;
+          status?: HealthStatus;
+          last_care?: string | null;
+          next_care?: string | null;
+          next_task?: string | null;
+          x?: number;
+          y?: number;
+          lat?: number | null;
+          lng?: number | null;
+          photo_path?: string | null;
+        };
+        Update: {
+          project_id?: string;
+          species?: string;
+          common?: string;
+          kind?: PlantKind;
+          zone?: string;
+          status?: HealthStatus;
+          last_care?: string | null;
+          next_care?: string | null;
+          next_task?: string | null;
+          x?: number;
+          y?: number;
+          lat?: number | null;
+          lng?: number | null;
+          photo_path?: string | null;
+        };
+        Relationships: [];
+      };
+      tasks: {
+        Row: {
+          id: string;
+          company_id: string;
+          title: string;
+          project_id: string;
+          zone: string;
+          plant_id: string | null;
+          worker_id: string;
+          day: number;
+          date: string | null;
+          start: number;
+          duration: number;
+          kind: TaskKind;
+          weather_note: string | null;
+          status: TaskStatus;
+          approved_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string;
+          title: string;
+          project_id: string;
+          zone?: string;
+          plant_id?: string | null;
+          worker_id: string;
+          day: number;
+          date?: string | null;
+          start: number;
+          duration: number;
+          kind: TaskKind;
+          weather_note?: string | null;
+          status?: TaskStatus;
+          approved_at?: string | null;
+        };
+        Update: {
+          title?: string;
+          project_id?: string;
+          zone?: string;
+          plant_id?: string | null;
+          worker_id?: string;
+          day?: number;
+          date?: string | null;
+          start?: number;
+          duration?: number;
+          kind?: TaskKind;
+          weather_note?: string | null;
+          status?: TaskStatus;
+          approved_at?: string | null;
+        };
+        Relationships: [];
+      };
       care_events: {
         Row: {
           id: string;
+          company_id: string;
           plant_id: string;
           task_id: string | null;
           worker_id: string | null;
@@ -29,243 +348,25 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          company_id?: string;
           plant_id: string;
           task_id?: string | null;
           worker_id?: string | null;
           date: string;
           action: string;
           done?: boolean;
-          created_at?: string;
         };
         Update: {
-          id?: string;
-          plant_id?: string;
-          task_id?: string | null;
-          worker_id?: string | null;
           date?: string;
           action?: string;
           done?: boolean;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      clients: {
-        Row: {
-          id: string;
-          company_id: string;
-          name: string;
-          city: string;
-          sites: number;
-          plants: number;
-          contact: string;
-          hours_this_month: number;
-          monthly_value: number;
-          contract_until: string | null;
-          health: string;
-          created_at: string;
-        };
-        Insert: {
-          id: string;
-          company_id: string;
-          name: string;
-          city: string;
-          sites?: number;
-          plants?: number;
-          contact: string;
-          hours_this_month?: number;
-          monthly_value?: number;
-          contract_until?: string | null;
-          health?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          company_id?: string;
-          name?: string;
-          city?: string;
-          sites?: number;
-          plants?: number;
-          contact?: string;
-          hours_this_month?: number;
-          monthly_value?: number;
-          contract_until?: string | null;
-          health?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      companies: {
-        Row: {
-          id: string;
-          name: string;
-          created_at: string;
-        };
-        Insert: {
-          id: string;
-          name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      offers: {
-        Row: {
-          id: string;
-          client_id: string;
-          project_id: string;
-          what: string;
-          value: number;
-          due_date: string;
-          subject: string;
-          body: string;
-          status: string;
-          created_at: string;
-          approved_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          client_id: string;
-          project_id: string;
-          what: string;
-          value: number;
-          due_date: string;
-          subject: string;
-          body: string;
-          status?: string;
-          created_at?: string;
-          approved_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          client_id?: string;
-          project_id?: string;
-          what?: string;
-          value?: number;
-          due_date?: string;
-          subject?: string;
-          body?: string;
-          status?: string;
-          created_at?: string;
-          approved_at?: string | null;
-        };
-        Relationships: [];
-      };
-      plants: {
-        Row: {
-          id: string;
-          project_id: string;
-          species: string;
-          common: string;
-          kind: string;
-          site: string;
-          status: string;
-          last_care: string | null;
-          next_care: string | null;
-          next_task: string | null;
-          x: number;
-          y: number;
-          /** migration 0003 — absent (undefined) until it's applied */
-          lat?: number | null;
-          lng?: number | null;
-          created_at: string;
-        };
-        Insert: {
-          id: string;
-          project_id: string;
-          species: string;
-          common: string;
-          kind: string;
-          site: string;
-          status?: string;
-          last_care?: string | null;
-          next_care?: string | null;
-          next_task?: string | null;
-          x: number;
-          y: number;
-          lat?: number | null;
-          lng?: number | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          project_id?: string;
-          species?: string;
-          common?: string;
-          kind?: string;
-          site?: string;
-          status?: string;
-          last_care?: string | null;
-          next_care?: string | null;
-          next_task?: string | null;
-          x?: number;
-          y?: number;
-          lat?: number | null;
-          lng?: number | null;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      projects: {
-        Row: {
-          id: string;
-          client_id: string;
-          name: string;
-          city: string;
-          address: string;
-          lat: number;
-          lng: number;
-          zones: string[];
-          lead_worker_id: string | null;
-          worker_ids: string[];
-          visits_per_month: number;
-          monthly_value: number;
-          contract_until: string | null;
-          status: string;
-          created_at: string;
-        };
-        Insert: {
-          id: string;
-          client_id: string;
-          name: string;
-          city: string;
-          address: string;
-          lat: number;
-          lng: number;
-          zones: string[];
-          lead_worker_id?: string | null;
-          worker_ids: string[];
-          visits_per_month?: number;
-          monthly_value?: number;
-          contract_until?: string | null;
-          status?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          client_id?: string;
-          name?: string;
-          city?: string;
-          address?: string;
-          lat?: number;
-          lng?: number;
-          zones?: string[];
-          lead_worker_id?: string | null;
-          worker_ids?: string[];
-          visits_per_month?: number;
-          monthly_value?: number;
-          contract_until?: string | null;
-          status?: string;
-          created_at?: string;
         };
         Relationships: [];
       };
       task_photos: {
         Row: {
           id: string;
+          company_id: string;
           task_id: string;
           storage_path: string;
           taken_at: string;
@@ -275,136 +376,137 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          company_id?: string;
           task_id: string;
           storage_path: string;
           taken_at: string;
           lat?: number | null;
           lng?: number | null;
-          created_at?: string;
         };
-        Update: {
-          id?: string;
-          task_id?: string;
-          storage_path?: string;
-          taken_at?: string;
-          lat?: number | null;
-          lng?: number | null;
-          created_at?: string;
-        };
+        Update: Record<string, never>;
         Relationships: [];
       };
-      tasks: {
+      offers: {
         Row: {
           id: string;
-          title: string;
+          company_id: string;
+          client_id: string;
           project_id: string;
-          site: string;
-          plant_id: string | null;
-          worker_id: string;
-          day: number;
-          date: string | null;
-          start: number;
-          duration: number;
-          kind: string;
-          weather_note: string | null;
-          status: string;
+          what: string;
+          value: number;
+          due_date: string;
+          subject: string;
+          body: string;
+          status: OfferStatus;
           approved_at: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
-          id: string;
-          title: string;
+          id?: string;
+          company_id?: string;
+          client_id: string;
           project_id: string;
-          site: string;
-          plant_id?: string | null;
-          worker_id: string;
-          day: number;
-          date?: string | null;
-          start: number;
-          duration: number;
-          kind: string;
-          weather_note?: string | null;
-          status?: string;
+          what: string;
+          value: number;
+          due_date: string;
+          subject: string;
+          body: string;
+          status?: OfferStatus;
           approved_at?: string | null;
-          created_at?: string;
         };
         Update: {
-          id?: string;
-          title?: string;
-          project_id?: string;
-          site?: string;
-          plant_id?: string | null;
-          worker_id?: string;
-          day?: number;
-          date?: string | null;
-          start?: number;
-          duration?: number;
-          kind?: string;
-          weather_note?: string | null;
-          status?: string;
+          what?: string;
+          value?: number;
+          due_date?: string;
+          subject?: string;
+          body?: string;
+          status?: OfferStatus;
           approved_at?: string | null;
-          created_at?: string;
         };
         Relationships: [];
       };
       weather_cache: {
-        Row: {
-          key: string;
-          fetched_at: string;
-          payload: Json;
-        };
-        Insert: {
-          key: string;
-          fetched_at?: string;
-          payload: Json;
-        };
-        Update: {
-          key?: string;
-          fetched_at?: string;
-          payload?: Json;
-        };
+        Row: { key: string; fetched_at: string; payload: Json };
+        Insert: { key: string; fetched_at?: string; payload: Json };
+        Update: { fetched_at?: string; payload?: Json };
         Relationships: [];
       };
-      workers: {
-        Row: {
-          id: string;
-          company_id: string;
-          name: string;
-          role: string;
-          language: string;
-          color: string;
-          app_role: string;
-          user_id: string | null;
-          created_at: string;
-        };
+      usage_counters: {
+        Row: { company_id: string; kind: string; day: string; count: number };
         Insert: {
-          id: string;
           company_id: string;
-          name: string;
-          role: string;
-          language: string;
-          color: string;
-          app_role?: string;
-          user_id?: string | null;
-          created_at?: string;
+          kind: string;
+          day: string;
+          count?: number;
         };
-        Update: {
-          id?: string;
-          company_id?: string;
-          name?: string;
-          role?: string;
-          language?: string;
-          color?: string;
-          app_role?: string;
-          user_id?: string | null;
-          created_at?: string;
-        };
+        Update: { count?: number };
         Relationships: [];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Functions: {
+      create_company: {
+        Args: { company_name: string; full_name: string };
+        Returns: string;
+      };
+      complete_task: {
+        Args: {
+          p_task_id: string;
+          p_photo_path: string;
+          p_taken_at: string;
+          p_lat: number | null;
+          p_lng: number | null;
+          p_local_date: string;
+        };
+        Returns: Database["public"]["Tables"]["task_photos"]["Row"];
+      };
+      set_task_status: {
+        Args: { p_task_id: string; p_status: TaskStatus };
+        Returns: undefined;
+      };
+      update_my_profile: {
+        Args: { p_language: WorkerLanguage };
+        Returns: undefined;
+      };
+      set_project_crew: {
+        Args: {
+          p_project_id: string;
+          p_worker_ids: string[];
+          p_lead_id: string | null;
+        };
+        Returns: undefined;
+      };
+      bump_usage: {
+        Args: { p_kind: string; p_daily_limit: number };
+        Returns: boolean;
+      };
+      client_stats: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          client_id: string;
+          sites: number;
+          plants: number;
+          hours: number;
+        }[];
+      };
+    };
+    Enums: {
+      app_role: "boss" | "worker";
+      worker_language: "ET" | "LV" | "EN";
+      health_status: "healthy" | "attention" | "critical";
+      client_health: "good" | "watch" | "at risk";
+      plant_kind: "Tree" | "Hedge" | "Lawn" | "Flower bed" | "Shrub";
+      task_kind:
+        | "Watering"
+        | "Clipping"
+        | "Mowing"
+        | "Planting"
+        | "Inspection"
+        | "Feeding";
+      task_status: "planned" | "done" | "skipped";
+      offer_status: "draft" | "approved" | "dismissed";
+    };
     CompositeTypes: Record<string, never>;
   };
 };

@@ -1,13 +1,13 @@
 /**
- * Database rows -> the domain types the screens already use.
+ * Database rows -> the domain types the screens use (`@/lib/types`).
  *
- * The UI types in `@/lib/types` are the contract here: every screen, plus the maps and
- * PlantCalendar, is written against them.
- *
- * Two gaps the live schema leaves us to fill:
- *  - projects/plants/tasks have no denormalised `client` name, so callers pass one in.
- *  - dates are real `date` columns, but the UI renders short display strings ("12 Sep",
- *    "Today"), so they are formatted here.
+ * Gaps the schema leaves for the caller to fill:
+ *  - projects/plants/tasks don't carry the client's name, so callers pass one in.
+ *  - a site's crew and lead live in `project_workers`, and money lives in the boss-only
+ *    `client_terms` / `project_terms`; callers pass what they fetched (terms are absent for
+ *    workers, who can't read them).
+ *  - dates are real `date` columns, but the UI renders short strings ("12 Sep", "Today"), so
+ *    they are formatted here.
  */
 import { format, parseISO } from "date-fns";
 
@@ -19,6 +19,12 @@ import type { Database } from "../supabase/types";
 type Row<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];
 
+/** Money a boss sees; workers get none of it. */
+export type Terms = { monthly_value: number; contract_until: string | null };
+
+/** A site's crew, in the order it should be listed: the lead first. */
+export type Crew = { workerIds: string[]; leadWorkerId: string };
+
 /** "2026-09-12" -> "12 Sep", and today's date -> "Today". */
 export function toShortDate(value: string | null): string {
   if (!value) return "";
@@ -26,17 +32,43 @@ export function toShortDate(value: string | null): string {
   return format(parseISO(value), "dd MMM");
 }
 
-/** The stored counter columns are ignored — they drift. `stats` is worked out from the records. */
-export function toClient(row: Row<"clients">, stats: ClientStats): Client {
+/** Group `project_workers` rows by site, lead first. */
+export function crewsBySite(
+  rows: Pick<Row<"project_workers">, "project_id" | "worker_id" | "is_lead">[],
+): Map<string, Crew> {
+  const crews = new Map<string, Crew>();
+  for (const row of rows) {
+    const crew = crews.get(row.project_id) ?? {
+      workerIds: [],
+      leadWorkerId: "",
+    };
+    crews.set(
+      row.project_id,
+      row.is_lead
+        ? {
+            workerIds: [row.worker_id, ...crew.workerIds],
+            leadWorkerId: row.worker_id,
+          }
+        : { ...crew, workerIds: [...crew.workerIds, row.worker_id] },
+    );
+  }
+  return crews;
+}
+
+export function toClient(
+  row: Row<"clients">,
+  stats: ClientStats,
+  terms: Terms | undefined,
+): Client {
   return {
     id: row.id,
     name: row.name,
     city: row.city,
     ...stats,
     contact: row.contact,
-    monthlyValue: Number(row.monthly_value),
-    contractUntil: row.contract_until ?? "",
-    health: row.health as Client["health"],
+    monthlyValue: Number(terms?.monthly_value ?? 0),
+    contractUntil: terms?.contract_until ?? "",
+    health: row.health,
   };
 }
 
@@ -44,13 +76,22 @@ export function toWorker(row: Row<"workers">): Worker {
   return {
     id: row.id,
     name: row.name,
-    role: row.role,
+    role: row.job_title,
     language: row.language,
     color: row.color,
+    email: row.email ?? "",
+    appRole: row.app_role,
+    hasLogin: row.user_id !== null,
+    ...(row.invited_at ? { invitedAt: row.invited_at } : {}),
   };
 }
 
-export function toProject(row: Row<"projects">, clientName: string): Project {
+export function toProject(
+  row: Row<"projects">,
+  clientName: string,
+  crew: Crew | undefined,
+  terms: Terms | undefined,
+): Project {
   return {
     id: row.id,
     name: row.name,
@@ -58,29 +99,30 @@ export function toProject(row: Row<"projects">, clientName: string): Project {
     client: clientName,
     city: row.city,
     address: row.address,
-    // Track B's weather lookup and inter-site route ordering read these.
+    // The weather lookup and the route ordering between sites read these.
     lat: Number(row.lat),
     lng: Number(row.lng),
     zones: row.zones,
-    leadWorkerId: row.lead_worker_id ?? "",
-    workerIds: row.worker_ids,
+    leadWorkerId: crew?.leadWorkerId ?? "",
+    workerIds: crew?.workerIds ?? [],
     visitsPerMonth: row.visits_per_month,
-    monthlyValue: Number(row.monthly_value),
-    contractUntil: row.contract_until ?? "",
-    status: row.status as Project["status"],
+    monthlyValue: Number(terms?.monthly_value ?? 0),
+    contractUntil: terms?.contract_until ?? "",
+    status: row.status,
   };
 }
 
 export function toPlant(row: Row<"plants">, clientName: string): Plant {
   return {
     id: row.id,
+    code: row.code,
     projectId: row.project_id,
     species: row.species,
     common: row.common,
-    kind: row.kind as Plant["kind"],
+    kind: row.kind,
     client: clientName,
-    site: row.site,
-    status: row.status as Plant["status"],
+    site: row.zone,
+    status: row.status,
     lastCare: toShortDate(row.last_care),
     nextCare: toShortDate(row.next_care),
     nextTask: row.next_task ?? "",
@@ -88,8 +130,7 @@ export function toPlant(row: Row<"plants">, clientName: string): Plant {
     y: Number(row.y),
     ...(row.last_care ? { lastCareDate: row.last_care } : {}),
     ...(row.next_care ? { nextCareDate: row.next_care } : {}),
-    // Real GPS once migration 0003 is applied; until then the columns don't exist and the map
-    // derives a position from x/y (src/lib/geo.ts).
+    // Without GPS, the map places the plant from x/y on its site (src/lib/geo.ts).
     ...(row.lat != null && row.lng != null
       ? { lat: Number(row.lat), lng: Number(row.lng) }
       : {}),
@@ -102,20 +143,19 @@ export function toTask(row: Row<"tasks">, clientName: string): Task {
     title: row.title,
     projectId: row.project_id,
     client: clientName,
-    site: row.site,
+    site: row.zone,
     workerId: row.worker_id,
     day: row.day,
     start: row.start,
     duration: Number(row.duration),
-    kind: row.kind as Task["kind"],
+    kind: row.kind,
     ...(row.weather_note ? { weatherNote: row.weather_note } : {}),
-    status: row.status as Task["status"],
+    status: row.status,
     // Optional on Task, so omitting them typechecks — but dropping them loses the planner's
     // plant-level location and makes an approved plan read back as unapproved.
     ...(row.plant_id ? { plantId: row.plant_id } : {}),
     ...(row.approved_at ? { approvedAt: row.approved_at } : {}),
-    // `date` is absent from the row until migration 0004 is applied; undefined then means the
-    // task is the recurring weekly template, which is exactly how the views read it.
+    // No date means the task is a weekly template, repeating on `day`.
     ...(row.date ? { date: row.date } : {}),
   };
 }

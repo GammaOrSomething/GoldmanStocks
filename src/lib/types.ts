@@ -1,8 +1,6 @@
 /**
- * Shared domain types — the contract between track A (data/CRUD/auth) and track B
- * (weather/planner/LLM/photos). Field names mirror supabase/migrations/0001_init.sql
- * (camelCase here, snake_case in SQL). Changing a field or type name after step 0
- * means telling the other track first.
+ * Shared domain types: what every screen, the planner and the AI features work with.
+ * src/lib/api/mappers.ts turns database rows (supabase/migrations/) into these.
  */
 
 export type PlantStatus = "healthy" | "attention" | "critical";
@@ -21,6 +19,7 @@ export type Project = {
   leadWorkerId: string;
   workerIds: string[];
   visitsPerMonth: number;
+  /** Boss-only: 0 and "" for workers, who can't read contract terms. */
   monthlyValue: number;
   contractUntil: string;
   status: PlantStatus;
@@ -28,6 +27,8 @@ export type Project = {
 
 export type Plant = {
   id: string;
+  /** readable per-company label, e.g. "PL-0001" — show this, never `id` */
+  code: string;
   projectId: string;
   species: string;
   common: string;
@@ -41,7 +42,7 @@ export type Plant = {
   /** map position in percent of the site plan, 0–100 */
   x: number;
   y: number;
-  /** real GPS position — from migration 0003 onwards; otherwise derived from x/y (see geo.ts) */
+  /** real GPS position when registered with it; otherwise derived from x/y (see geo.ts) */
   lat?: number;
   lng?: number;
   /** ISO dates behind the "12 Sep" display strings above */
@@ -57,6 +58,7 @@ export type Client = {
   plants: number;
   contact: string;
   hoursThisMonth: number;
+  /** Boss-only: 0 and "" for workers, who can't read contract terms. */
   monthlyValue: number;
   contractUntil: string;
   health: "good" | "watch" | "at risk";
@@ -65,9 +67,17 @@ export type Client = {
 export type Worker = {
   id: string;
   name: string;
+  /** job title, e.g. "Head gardener" (not the app role) */
   role: string;
   language: string;
   color: string;
+  /** "" when none is on file */
+  email: string;
+  appRole: "boss" | "worker";
+  /** a login is linked to this worker (set by an invitation) */
+  hasLogin: boolean;
+  /** ISO timestamp of the last invitation email */
+  invitedAt?: string;
 };
 
 export type Task = {
@@ -81,7 +91,7 @@ export type Task = {
   workerId: string;
   day: number; // 0 = Monday
   /**
-   * Local calendar date, YYYY-MM-DD — set for a one-off task (migration 0004). Undefined means
+   * Local calendar date, YYYY-MM-DD — set for a one-off task. Undefined means
    * the task is the recurring weekly template it has always been, repeating on `day`.
    * `day` always agrees with `date` when both are present.
    */
