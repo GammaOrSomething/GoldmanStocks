@@ -23,11 +23,11 @@ user's company. Row-level security then:
 
 Anything else a worker does goes through a function that checks exactly one thing:
 
-| Function            | What it does                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `complete_task`     | Finish a task with photo proof, in one transaction. Only the assigned worker or a boss. |
-| `set_task_status`   | Skip a job, or put it back to planned.                                                  |
-| `update_my_profile` | Change the language they speak.                                                         |
+| Function            | What it does                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complete_task`     | Finish a task with photo proof, in one transaction. Only the assigned worker or a boss. The photo time must be today (±1 day); a weekly task once a week; a one-off task only once. |
+| `set_task_status`   | Skip a job, or put it back to planned. Only a boss can reopen a finished one-off task.                                                                                              |
+| `update_my_profile` | Change the language they speak.                                                                                                                                                     |
 
 The functions for bosses and signup:
 
@@ -35,14 +35,23 @@ The functions for bosses and signup:
 | ------------------ | ---------------------------------------------------------------------- |
 | `create_company`   | Called once after signup. Makes the caller the boss of a new company.  |
 | `set_project_crew` | Replace a site's crew and lead in one go.                              |
-| `bump_usage`       | Count an AI call against the company's daily limit.                    |
+| `bump_usage`       | Count an AI call against the limit in `private.usage_limits`.          |
 | `client_stats`     | Sites, plants and proven hours per client, worked out in the database. |
 
 Child rows use composite foreign keys (`(parent_id, company_id)`), so a row can never point at
 another company's data even if someone guesses an id.
 
 Logins are linked to workers only by the server, with the service role, when a boss invites
-someone. A trigger stops signed-in users from doing it themselves.
+someone. A trigger stops signed-in users from doing it themselves. It tells the two apart with
+`private.is_trusted_caller()`, which reads the session's database role (`service_role`, or none
+for a direct connection), never the login token.
+
+A boss may change only a company's `name` and `timezone`. Signed-out visitors (`anon`) have no
+access to any table or function, and signed-in users can't `TRUNCATE`, which would skip
+row-level security. Photo paths must be plain file names with an image extension.
+
+New functions are not executable by everyone, as Postgres would otherwise make them (part 1
+changes the default). In `private`, grant each one to the role that needs it.
 
 ## Working locally
 

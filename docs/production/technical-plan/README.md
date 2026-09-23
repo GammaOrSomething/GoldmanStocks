@@ -193,11 +193,12 @@ This closes the biggest hole right away. It only checks signed in versus signed 
 
 - `create_company(company_name, full_name)`: refuses if the caller already has a worker row, and never trusts signup metadata.
 - `complete_task(task_id, photo_path, taken_at, lat, lng, local_date)`, run as one transaction:
-  - Checks the task is the caller's own (or the caller is a boss), that the path prefix is right, and that the photo exists in storage.
+  - Checks the task is the caller's own (or the caller is a boss), that the path is a plain image file in the task's folder, and that the photo exists in storage.
+  - Refuses a photo time or work date away from the company's today (±1 day), a second proof for a weekly task in the same week, and a one-off task that is already done.
   - Then adds the photo row, marks the task done, adds a care event and updates the plant's last care date.
 - `update_my_profile(language)`.
 - `set_project_crew(project_id, worker_ids, lead_id)`: runs with the caller's rights, so the boss rules apply.
-- `bump_usage(kind, daily_limit)`.
+- `bump_usage(kind)`: boss-only; the limits live in `private.usage_limits` (`ai_plan`, `ai_outreach`), and unknown kinds are refused.
 - `client_stats(month_start, month_end)`: sites, plants and proven hours per client, computed in SQL. In D1, `listClients` switches to it, because Supabase caps each query at 1,000 rows and the in-app count (A1) would silently undercount at scale. Keep `summarizeClients` as the tested reference.
 
 **Storage**

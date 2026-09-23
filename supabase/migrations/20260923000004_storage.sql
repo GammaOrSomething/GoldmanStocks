@@ -23,25 +23,23 @@ create policy "task-photos: members read their company's photos" on storage.obje
   );
 
 -- Task proof: the worker the task is assigned to, or a boss. Plant pictures: any member.
+-- The whole name must match, with a plain file name and an image extension, so nothing can
+-- hide behind '..', an empty name or an odd file type.
 create policy "task-photos: members upload into their company's folders" on storage.objects
   for insert to authenticated
   with check (
     bucket_id = 'task-photos'
-    and (storage.foldername(name))[1] = (select private.company_id())::text
+    and name ~ (
+      '^' || (select private.company_id())::text
+      || '/(plants|tasks/[0-9a-f-]{36})/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$'
+    )
     and (
-      (
-        (storage.foldername(name))[2] = 'plants'
-        and array_length(storage.foldername(name), 1) = 2
-      )
-      or (
-        (storage.foldername(name))[2] = 'tasks'
-        and array_length(storage.foldername(name), 1) = 3
-        and exists (
-          select 1 from public.tasks t
-          where t.id::text = (storage.foldername(name))[3]
-            and t.company_id = (select private.company_id())
-            and ((select private.is_boss()) or t.worker_id = (select private.worker_id()))
-        )
+      (storage.foldername(name))[2] = 'plants'
+      or exists (
+        select 1 from public.tasks t
+        where t.id::text = (storage.foldername(name))[3]
+          and t.company_id = (select private.company_id())
+          and ((select private.is_boss()) or t.worker_id = (select private.worker_id()))
       )
     )
   );

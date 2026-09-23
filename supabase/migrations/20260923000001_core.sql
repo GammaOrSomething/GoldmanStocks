@@ -18,6 +18,12 @@ create schema if not exists private;
 revoke all on schema private from public;
 grant usage on schema private to authenticated, service_role;
 
+-- Postgres lets everyone execute a new function unless told otherwise, and only this global
+-- default (not a per-schema one) can change that. From here on, functions are executable only
+-- by the roles they are granted to: in `public`, Supabase's own defaults grant them to the API
+-- roles (anon is taken off again in part 3); in `private`, nobody but explicit grants.
+alter default privileges revoke execute on functions from public;
+
 -- ─── Types ───────────────────────────────────────────────────────────────────
 -- Values match the strings the app already uses, so mapping stays a plain cast.
 create type public.app_role as enum ('boss', 'worker');
@@ -30,6 +36,15 @@ create type public.task_kind as enum (
 );
 create type public.task_status as enum ('planned', 'done', 'skipped');
 create type public.offer_status as enum ('draft', 'approved', 'dismissed');
+
+-- True for the server (service role) and for direct database sessions (migrations, the
+-- dashboard), whose `role` setting is 'none'. False for anyone reaching the database through
+-- the API as a user. Read from the session's role rather than the login token, so a token that
+-- is missing its role claim is treated as a user, not waved through.
+create function private.is_trusted_caller() returns boolean
+language sql stable set search_path = '' as $$
+  select coalesce(current_setting('role', true), 'none') in ('service_role', 'none')
+$$;
 
 -- Keeps `updated_at` current on every table that has one.
 create function private.set_updated_at() returns trigger
@@ -45,8 +60,8 @@ $$;
 create table public.companies (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (length(btrim(name)) between 1 and 200),
-  -- Local clock for "today", reports and plan weeks. Not wired into the app yet.
-  timezone   text not null default 'Europe/Tallinn',
+  -- Local clock for "today", reports and plan weeks; checked by private.check_timezone().
+  timezone   text not null default 'Europe/Tallinn' check (length(timezone) <= 64),
   -- Last plant code handed out (PL-0001, PL-0002, …); see private.assign_plant_code().
   plant_seq  integer not null default 0 check (plant_seq >= 0),
   created_by uuid references auth.users (id) on delete set null,
@@ -60,12 +75,13 @@ create table public.workers (
   id          uuid primary key default gen_random_uuid(),
   company_id  uuid not null references public.companies (id) on delete cascade,
   user_id     uuid unique references auth.users (id) on delete set null,
-  email       text check (email is null or email ~ '^[^@\s]+@[^@\s]+$'),
+  email       text check (email is null or (length(email) <= 320 and email ~ '^[^@\s]+@[^@\s]+$')),
   name        text not null check (length(btrim(name)) between 1 and 200),
-  job_title   text not null default '',  -- shown in the UI, e.g. 'Head gardener', 'Seasonal'
+  -- shown in the UI, e.g. 'Head gardener', 'Seasonal'
+  job_title   text not null default '' check (length(job_title) <= 100),
   app_role    public.app_role not null default 'worker',
   language    public.worker_language not null default 'EN',
-  color       text not null default '',
+  color       text not null default '' check (length(color) <= 32),
   invited_at  timestamptz,
   -- Workers are archived, never deleted: finished jobs keep pointing at who did them.
   archived_at timestamptz,
@@ -121,8 +137,8 @@ create table public.clients (
   company_id uuid not null default private.company_id()
              references public.companies (id) on delete cascade,
   name       text not null check (length(btrim(name)) between 1 and 200),
-  city       text not null default '',
-  contact    text not null default '',
+  city       text not null default '' check (length(city) <= 200),
+  contact    text not null default '' check (length(contact) <= 1000),
   health     public.client_health not null default 'good',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -148,11 +164,12 @@ create table public.projects (
   company_id       uuid not null default private.company_id(),
   client_id        uuid not null,
   name             text not null check (length(btrim(name)) between 1 and 200),
-  city             text not null default '',
-  address          text not null default '',
+  city             text not null default '' check (length(city) <= 200),
+  address          text not null default '' check (length(address) <= 500),
   lat              double precision not null check (lat between -90 and 90),
   lng              double precision not null check (lng between -180 and 180),
-  zones            text[] not null default '{}',
+  zones            text[] not null default '{}'
+                   check (cardinality(zones) <= 100 and length(array_to_string(zones, '')) <= 10000),
   visits_per_month integer not null default 0 check (visits_per_month >= 0),
   status           public.health_status not null default 'healthy',
   created_at       timestamptz not null default now(),
@@ -200,17 +217,18 @@ create table public.plants (
   -- Readable, per company: PL-0001, PL-0002, … Set on insert, never changed.
   code       text not null,
   project_id uuid not null,
-  species    text not null default '',
+  species    text not null default '' check (length(species) <= 200),
   common     text not null check (length(btrim(common)) between 1 and 200),
   kind       public.plant_kind not null,
-  zone       text not null default '',  -- area within the site, e.g. 'North courtyard'
+  -- area within the site, e.g. 'North courtyard'
+  zone       text not null default '' check (length(zone) <= 200),
   status     public.health_status not null default 'healthy',
   last_care  date,
   next_care  date,
-  next_task  text,
+  next_task  text check (length(next_task) <= 200),
   -- Position on the site plan in percent; lat/lng when registered with GPS.
-  x          numeric not null default 50 check (x between 0 and 100),
-  y          numeric not null default 50 check (y between 0 and 100),
+  x          numeric(6, 3) not null default 50 check (x between 0 and 100),
+  y          numeric(6, 3) not null default 50 check (y between 0 and 100),
   lat        double precision check (lat between -90 and 90),
   lng        double precision check (lng between -180 and 180),
   photo_path text,  -- object in the task-photos bucket, under <company_id>/plants/
@@ -218,7 +236,11 @@ create table public.plants (
   updated_at timestamptz not null default now(),
   unique (id, company_id),
   unique (company_id, code),
-  check (photo_path is null or photo_path like company_id::text || '/plants/%'),
+  -- A plain file name, so a path can't climb out of the folder with '..'.
+  check (
+    photo_path is null
+    or photo_path ~ ('^' || company_id::text || '/plants/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$')
+  ),
   foreign key (project_id, company_id)
     references public.projects (id, company_id) on delete cascade
 );
@@ -232,7 +254,7 @@ create table public.tasks (
   company_id   uuid not null default private.company_id(),
   title        text not null check (length(btrim(title)) between 1 and 200),
   project_id   uuid not null,
-  zone         text not null default '',
+  zone         text not null default '' check (length(zone) <= 200),
   plant_id     uuid,
   worker_id    uuid not null,
   day          smallint not null check (day between 0 and 6),  -- 0 = Monday
@@ -240,7 +262,7 @@ create table public.tasks (
   start        smallint not null check (start between 0 and 23),  -- hour, 24h
   duration     numeric(4, 2) not null check (duration > 0 and duration <= 24),  -- hours
   kind         public.task_kind not null,
-  weather_note text,
+  weather_note text check (length(weather_note) <= 1000),
   status       public.task_status not null default 'planned',
   approved_at  timestamptz,  -- when the boss approved the day's plan
   created_at   timestamptz not null default now(),
@@ -266,7 +288,7 @@ create table public.care_events (
   task_id    uuid,
   worker_id  uuid,
   date       date not null,
-  action     text not null,
+  action     text not null check (length(action) <= 200),
   done       boolean not null default false,
   created_at timestamptz not null default now(),
   foreign key (plant_id, company_id)
@@ -291,7 +313,10 @@ create table public.task_photos (
   lat          double precision check (lat between -90 and 90),
   lng          double precision check (lng between -180 and 180),
   created_at   timestamptz not null default now(),
-  check (storage_path like company_id::text || '/tasks/' || task_id::text || '/%'),
+  check (
+    storage_path
+      ~ ('^' || company_id::text || '/tasks/' || task_id::text || '/[A-Za-z0-9_-]+\.(jpe?g|png|webp|heic)$')
+  ),
   foreign key (task_id, company_id)
     references public.tasks (id, company_id) on delete cascade
 );
@@ -304,11 +329,11 @@ create table public.offers (
   company_id  uuid not null default private.company_id(),
   client_id   uuid not null,
   project_id  uuid not null,
-  what        text not null,
+  what        text not null check (length(what) <= 200),
   value       numeric(12, 2) not null check (value >= 0),
   due_date    date not null,
-  subject     text not null,
-  body        text not null,
+  subject     text not null check (length(subject) <= 200),
+  body        text not null check (length(body) <= 20000),
   status      public.offer_status not null default 'draft',
   approved_at timestamptz,
   created_at  timestamptz not null default now(),
@@ -332,16 +357,40 @@ create table public.weather_cache (
   payload    jsonb not null
 );
 
+-- The metered features and how many uses a company gets per day. Kept in the database so no
+-- caller can pick their own limit; bump_usage() refuses any kind not listed here.
+create table private.usage_limits (
+  kind        text primary key,
+  daily_limit integer not null check (daily_limit >= 0)
+);
+insert into private.usage_limits (kind, daily_limit) values
+  ('ai_plan', 50),      -- AI week planning
+  ('ai_outreach', 50);  -- AI repeat-work offers
+
 -- Daily call counts, to cap how much each company can spend on the AI features.
 create table public.usage_counters (
   company_id uuid not null references public.companies (id) on delete cascade,
-  kind       text not null,
+  kind       text not null references private.usage_limits (kind) on update cascade,
   day        date not null,
   count      integer not null default 0 check (count >= 0),
   primary key (company_id, kind, day)
 );
 
--- ─── updated_at triggers ─────────────────────────────────────────────────────
+-- ─── Triggers ────────────────────────────────────────────────────────────────
+
+-- A bad time zone name would break every date the app works out for the company.
+create function private.check_timezone() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if not exists (select 1 from pg_catalog.pg_timezone_names where name = new.timezone) then
+    raise exception 'unknown time zone: %', new.timezone using errcode = '22023';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger check_timezone before insert or update of timezone on public.companies
+for each row execute function private.check_timezone();
 
 do $$
 declare t text;

@@ -11,6 +11,8 @@
 --     role, which bypasses row-level security) and the functions in part 2 touch them.
 --
 -- `(select private.company_id())` is the caller's company, evaluated once per query.
+--
+-- The grants at the end narrow what Supabase hands the API roles by default.
 
 do $$
 declare t text;
@@ -30,6 +32,7 @@ create policy "members read their company" on public.companies
   for select to authenticated
   using (id = (select private.company_id()));
 
+-- Only `name` and `timezone` may change; see the column grant at the end.
 create policy "boss renames the company" on public.companies
   for update to authenticated
   using (id = (select private.company_id()) and (select private.is_boss()))
@@ -133,3 +136,29 @@ create policy "members read" on public.task_photos
 create policy "boss deletes" on public.task_photos
   for delete to authenticated
   using (company_id = (select private.company_id()) and (select private.is_boss()));
+
+-- ─── Grants ──────────────────────────────────────────────────────────────────
+-- Supabase grants the API roles every privilege on every table and function in `public`, and
+-- row-level security then filters rows. Some privileges aren't filtered by it at all, so they
+-- are taken away here, and again by default for anything a later migration creates. (Nothing
+-- in `private` is executable by default either; see the top of part 1.)
+
+-- Signed-out visitors only ever use the auth API (sign in, sign up), never the tables.
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+revoke all on all functions in schema public from anon;
+alter default privileges in schema public revoke all on tables from anon;
+alter default privileges in schema public revoke all on sequences from anon;
+alter default privileges in schema public revoke all on functions from anon;
+
+-- TRUNCATE empties a table without asking row-level security; REFERENCES and TRIGGER let a
+-- user attach their own objects to ours. None of them belongs to an app user.
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+alter default privileges in schema public
+  revoke truncate, references, trigger on tables from authenticated;
+
+-- The company row: the counter behind plant codes and who created the company are the
+-- database's to change, so a boss may update only the name and time zone. Companies are
+-- created by create_company() and never deleted from the app.
+revoke insert, update, delete on public.companies from authenticated;
+grant update (name, timezone) on public.companies to authenticated;
