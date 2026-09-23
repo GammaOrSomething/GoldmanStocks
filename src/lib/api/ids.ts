@@ -36,26 +36,6 @@ export async function companyId(db: Db): Promise<string> {
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("No company found — run the seed first.");
+  if (!data) throw new Error("No company found.");
   return data.id;
-}
-
-/** Keep a client's site/plant counters in step when records are added under it. */
-export async function bumpClientCounter(
-  db: Db,
-  clientId: string,
-  field: "sites" | "plants",
-) {
-  const { data, error } = await db
-    .from("clients")
-    .select("sites, plants")
-    .eq("id", clientId)
-    .single();
-  if (error) throw new Error(error.message);
-  const next = (data[field] ?? 0) + 1;
-  const { error: updateError } = await db
-    .from("clients")
-    .update(field === "sites" ? { sites: next } : { plants: next })
-    .eq("id", clientId);
-  if (updateError) throw new Error(updateError.message);
 }

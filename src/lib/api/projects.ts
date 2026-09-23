@@ -4,10 +4,10 @@ import { z } from "zod/v4";
 import type { Project, Worker } from "../types";
 import { clientNameById } from "./lookups";
 import { toProject, toWorker } from "./mappers";
-import { bumpClientCounter, nextId } from "./ids";
+import { nextId } from "./ids";
 import { getAuthedClient } from "./session";
 
-/** Replaces the `projects` array in rootline-data.ts. */
+/** Every work site (project). */
 export const listProjects = createServerFn({ method: "GET" }).handler(
   async (): Promise<Project[]> => {
     const [{ data, error }, nameByClient] = await Promise.all([
@@ -21,7 +21,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(
   },
 );
 
-/** Mirrors `getProject()` in rootline-data.ts — null rather than undefined for a missing id. */
+/** One work site, or null for an unknown id. */
 export const getProject = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Project | null> => {
@@ -45,8 +45,8 @@ export type ProjectWorker = Worker & {
 };
 
 /**
- * Mirrors `projectWorkers()` in rootline-data.ts, including the derived per-week counts the
- * project detail page renders.
+ * A site's crew, lead first as listed on the site, with the per-week counts the project detail
+ * page renders.
  */
 export const projectWorkers = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
@@ -113,7 +113,7 @@ export const SiteInput = z.object({
 });
 export type SiteInput = z.infer<typeof SiteInput>;
 
-/** Create or update a work site (project). Adding one bumps its client's site count. */
+/** Create or update a work site (project). */
 export const saveSite = createServerFn({ method: "POST" })
   .validator(SiteInput)
   .handler(async ({ data }): Promise<{ id: string }> => {
@@ -141,7 +141,6 @@ export const saveSite = createServerFn({ method: "POST" })
     const id = await nextId(db, "projects", "p");
     const { error } = await db.from("projects").insert({ ...row, id });
     if (error) throw new Error(error.message);
-    await bumpClientCounter(db, data.clientId, "sites");
     return { id };
   });
 

@@ -1,17 +1,17 @@
 /**
  * Database rows -> the domain types the screens already use.
  *
- * The UI types in `@/lib/types` are the contract here: every screen, plus the maps,
- * PlantCalendar and plant-care.ts, was written against them. Mapping back to that exact shape
- * is what lets A6 be an import swap instead of a rewrite.
+ * The UI types in `@/lib/types` are the contract here: every screen, plus the maps and
+ * PlantCalendar, is written against them.
  *
  * Two gaps the live schema leaves us to fill:
  *  - projects/plants/tasks have no denormalised `client` name, so callers pass one in.
- *  - dates are real `date` columns, but the UI renders the mock's display strings
- *    ("12 Sep", "Today"), so they are formatted back here.
+ *  - dates are real `date` columns, but the UI renders short display strings ("12 Sep",
+ *    "Today"), so they are formatted here.
  */
 import { format, parseISO } from "date-fns";
 
+import type { ClientStats } from "../client-stats";
 import { localDate } from "../weather";
 import type { Client, Plant, Project, Task, Worker } from "../types";
 import type { Database } from "../supabase/types";
@@ -19,22 +19,21 @@ import type { Database } from "../supabase/types";
 type Row<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];
 
-/** "2026-09-12" -> "12 Sep", and today's (real) date -> "Today", matching the original mock data. */
+/** "2026-09-12" -> "12 Sep", and today's date -> "Today". */
 export function toShortDate(value: string | null): string {
   if (!value) return "";
   if (value === localDate(new Date())) return "Today";
   return format(parseISO(value), "dd MMM");
 }
 
-export function toClient(row: Row<"clients">): Client {
+/** The stored counter columns are ignored — they drift. `stats` is worked out from the records. */
+export function toClient(row: Row<"clients">, stats: ClientStats): Client {
   return {
     id: row.id,
     name: row.name,
     city: row.city,
-    sites: row.sites,
-    plants: row.plants,
+    ...stats,
     contact: row.contact,
-    hoursThisMonth: Number(row.hours_this_month),
     monthlyValue: Number(row.monthly_value),
     contractUntil: row.contract_until ?? "",
     health: row.health as Client["health"],

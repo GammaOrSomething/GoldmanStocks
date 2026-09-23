@@ -11,7 +11,7 @@ import {
   routeOrder,
   type PlanInput,
 } from "./planner";
-import { plants, projects, tasks, workers } from "./rootline-data";
+import { plants, projects, tasks, workers } from "./__fixtures__/week";
 import type { Project, Task, Worker } from "./types";
 import type { SiteForecast } from "./weather";
 
@@ -244,12 +244,12 @@ describe("routing and timing", () => {
   });
 });
 
-describe("the mock week", () => {
-  const mock: PlanInput = { tasks, workers, projects, plants };
+describe("a sample week", () => {
+  const week: PlanInput = { tasks, workers, projects, plants };
 
   test("every day plans without losing tasks or double-booking anyone", () => {
     for (let day = 0; day < 5; day++) {
-      const { tasks: out, byWorker } = planDay(mock, day);
+      const { tasks: out, byWorker } = planDay(week, day);
       expect(out.map((t) => t.id).sort()).toEqual(
         tasks.map((t) => t.id).sort(),
       );
@@ -259,7 +259,7 @@ describe("the mock week", () => {
   });
 
   test("feeding is taken off the seasonal worker", () => {
-    const { tasks: out } = planDay(mock, 3);
+    const { tasks: out } = planDay(week, 3);
     const feeding = out.find((t) => t.id === "t8")!;
     expect(workers.find((w) => w.id === feeding.workerId)?.role).not.toBe(
       "Seasonal",
@@ -268,7 +268,7 @@ describe("the mock week", () => {
 
   test("nobody is sent between cities in one day when someone local can go", () => {
     for (let day = 0; day < 5; day++) {
-      for (const plan of planDay(mock, day).byWorker)
+      for (const plan of planDay(week, day).byWorker)
         expect(plan.km).toBeLessThan(50);
     }
   });
@@ -283,7 +283,7 @@ describe("the mock week", () => {
         weatherCode: 61,
       })),
     };
-    const { tasks: out, byWorker } = proposeDay(mock, 0, { p2: wet }, WEEK);
+    const { tasks: out, byWorker } = proposeDay(week, 0, { p2: wet }, WEEK);
     const t3 = out.find((t) => t.id === "t3")!; // watering at Hotel Nordic Grand (p2)
     expect(t3.status).toBe("skipped");
     expect(t3.weatherNote).toBe("Skipped — 9 mm rain overnight");

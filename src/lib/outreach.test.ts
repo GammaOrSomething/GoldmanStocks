@@ -7,7 +7,7 @@ import {
   growthFactor,
   HORIZON_DAYS,
 } from "./outreach";
-import { clients, plants, projects } from "./rootline-data";
+import { clients, plants, projects } from "./__fixtures__/week";
 import { addDays, type SiteForecast } from "./weather";
 
 const NOW = new Date("2026-09-18T09:00:00Z"); // Friday
@@ -39,7 +39,7 @@ describe("growth", () => {
   });
 });
 
-describe("findOpportunities (mock data)", () => {
+describe("findOpportunities (sample week)", () => {
   const base = { plants, projects, clients, forecasts: {} };
 
   test("only hedges and lawns, due within the horizon, one per client site", () => {
@@ -77,5 +77,26 @@ describe("findOpportunities (mock data)", () => {
       (p) => p.kind === "Tree" || p.kind === "Shrub",
     );
     expect(findOpportunities({ ...base, plants: onlyTrees }, NOW)).toEqual([]);
+  });
+});
+
+describe("findOpportunities without a care history", () => {
+  const hedge = plants.find((p) => p.id === "PL-0372")!; // hedge at p4
+  const base = { projects, clients, forecasts: {} };
+
+  test("a plant with no last care date is due on its scheduled next care", () => {
+    const { lastCareDate: _, ...noLast } = hedge;
+    const [opp] = findOpportunities(
+      { ...base, plants: [{ ...noLast, nextCareDate: "2026-09-25" }] },
+      NOW,
+    );
+    expect(opp?.dueDate).toBe("2026-09-25");
+  });
+
+  test("a plant with neither date is left out rather than guessed", () => {
+    const { lastCareDate: _, nextCareDate: __, ...noDates } = hedge;
+    expect(
+      findOpportunities({ ...base, plants: [{ ...noDates }] }, NOW),
+    ).toEqual([]);
   });
 });

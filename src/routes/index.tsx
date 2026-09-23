@@ -122,7 +122,7 @@ function Dashboard() {
   });
   const overdue = due.filter((p) => (nextCareDate(p) ?? "") < todayDate);
   const critical = plants.filter((p) => p.status === "critical");
-  const plantsUnderCare = clients.reduce((sum, c) => sum + c.plants, 0);
+  const plantsUnderCare = plants.length;
 
   const opportunities = useMemo(
     () => findOpportunities({ plants, projects, clients, forecasts }, week.now),
@@ -252,12 +252,9 @@ function Dashboard() {
                   : `${overdue.length} overdue ${overdue.length === 1 ? "task requires" : "tasks require"} a decision before crews leave`}
               </p>
             </div>
-            <span className="rounded-md bg-data-lime/12 px-2 py-1 text-[11px] font-semibold text-primary">
-              Live
-            </span>
           </CardHeader>
           <CardContent className="p-0">
-            {/* Proportional strip: each metric's share of the day's signals. */}
+            {/* Colour band: one segment above each metric below, in its colour. */}
             <div className="flex h-1 w-full">
               <span className="flex-1 bg-data-violet" />
               <span className="flex-1 bg-data-cyan" />
@@ -296,7 +293,7 @@ function Dashboard() {
                 icon={approved ? CircleCheck : Sparkles}
                 label="AI plan"
                 value={approved ? "Ready" : "Review"}
-                note={approved ? "Sent to crew" : "Awaiting approval"}
+                note={approved ? "Approved" : "Awaiting approval"}
                 color="coral"
               />
             </div>

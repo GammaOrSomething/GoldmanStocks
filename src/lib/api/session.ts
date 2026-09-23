@@ -31,15 +31,13 @@ async function signInAsDemoBoss(): Promise<Client> {
   const password = process.env["DEMO_BOSS_PASSWORD"];
   if (!email || !password) {
     throw new Error(
-      "Missing DEMO_BOSS_EMAIL / DEMO_BOSS_PASSWORD — see .env.example, then run `bun run seed`.",
+      "Missing DEMO_BOSS_EMAIL / DEMO_BOSS_PASSWORD — see .env.example.",
     );
   }
 
   const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
-    throw new Error(
-      `Demo sign-in failed (${error.message}). Has \`bun run seed\` been run?`,
-    );
+    throw new Error(`Demo sign-in failed (${error.message}).`);
   }
   return db;
 }

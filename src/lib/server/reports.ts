@@ -18,9 +18,8 @@ import { PHOTO_BUCKET } from "./photos";
  * 1. `tasks` has no date. It is a recurring weekly template (day 0-6 + hour), so the only real
  *    date on finished work is `task_photos.taken_at`. Every row here is driven by the photo,
  *    which is also why a month with no photos is a normal empty report rather than an error.
- * 2. `tasks.plant_id` is nullable and, in the seeded data, always null — the seed only attaches
- *    plants to `care_events` (scripts/seed.ts). So `plantName` is usually null and the task's
- *    zone (`tasks.site`) is what actually locates the work.
+ * 2. `tasks.plant_id` is nullable, so `plantName` can be null; the task's zone (`tasks.site`)
+ *    is what always locates the work.
  * 3. The report runs on the service-role client with a `clientId` straight off the URL, so it
  *    bypasses RLS. Acceptable while every session signs in as the same demo boss (see
  *    `src/lib/api/session.ts`), but it is the seam to cut when real tenancy arrives:

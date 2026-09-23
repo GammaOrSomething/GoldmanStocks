@@ -1,4 +1,4 @@
-import { intervalByKind, parseShortDate } from "./plant-care";
+import { intervalByKind } from "./care-intervals";
 import type { Client, Plant, Project, RevenueOpportunity } from "./types";
 import { addDays, localDate, type ForecastByProject } from "./weather";
 
@@ -29,10 +29,18 @@ export type Opportunity = RevenueOpportunity & {
   items: string[];
 };
 
-function toIso(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
+/**
+ * When a plant's repeat job falls due: its last care plus the care interval (shortened in warm
+ * weather), else its scheduled next care. A plant with neither date has no history to predict
+ * from, so it's left out rather than guessed.
+ */
+function predictDue(plant: Plant, factor: number): string | undefined {
+  if (plant.lastCareDate)
+    return addDays(
+      plant.lastCareDate,
+      Math.round(intervalByKind[plant.kind] * factor),
+    );
+  return plant.nextCareDate;
 }
 
 /** Growth speed from the coming week's forecast: warm weeks bring work forward. */
@@ -58,8 +66,7 @@ export function estimateValue(project: Project, size: number) {
 
 /**
  * Repeat work to offer: hedges and lawns whose next clipping or mowing is predicted
- * within the horizon (last care + care interval, shortened in warm weather). One
- * opportunity per client site, biggest first.
+ * within the horizon (see `predictDue`). One opportunity per client site, biggest first.
  */
 export function findOpportunities(
   input: {
@@ -82,13 +89,10 @@ export function findOpportunities(
         .flatMap((plant) => {
           const repeat = REPEAT_JOBS[plant.kind];
           if (!repeat) return [];
-          const last =
-            plant.lastCareDate ?? toIso(parseShortDate(plant.lastCare));
-          const dueDate = addDays(
-            last,
-            Math.round(intervalByKind[plant.kind] * factor),
-          );
-          return dueDate <= horizon ? [{ plant, repeat, dueDate }] : [];
+          const dueDate = predictDue(plant, factor);
+          return dueDate && dueDate <= horizon
+            ? [{ plant, repeat, dueDate }]
+            : [];
         });
       if (!client || !due.length) return [];
 

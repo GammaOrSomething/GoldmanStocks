@@ -103,12 +103,6 @@ export function AppShell({
             <Smartphone className="size-4" />
             Worker app
           </Link>
-          <div className="rounded-lg border border-data-gold/25 bg-data-gold/10 p-4 text-xs text-foreground">
-            <p className="font-semibold text-foreground">AI plan ready</p>
-            <p className="mt-1 leading-relaxed text-muted-foreground">
-              Today's routes are waiting for your approval.
-            </p>
-          </div>
         </div>
       </aside>
 

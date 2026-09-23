@@ -1,6 +1,6 @@
 import type { PlantStatus } from "./types";
 
-/** Display labels shared by every screen (not data — see rootline-data.ts for the seed). */
+/** Display labels shared by every screen. */
 
 /** Plan-week day labels; a task's `day` indexes into this (0 = Monday, 6 = Sunday). */
 export const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

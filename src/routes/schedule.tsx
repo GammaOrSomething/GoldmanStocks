@@ -44,6 +44,7 @@ import { useProjects, useWorkers } from "@/hooks/use-data";
 import { weekDays } from "@/lib/labels";
 import { inWeek, taskDateIn } from "@/lib/task-schedule";
 import { cn } from "@/lib/utils";
+import { localDate } from "@/lib/weather";
 import type { Task } from "@/lib/types";
 
 export const Route = createFileRoute("/schedule")({
@@ -143,7 +144,7 @@ function Schedule() {
 
   const todayKey = weekDates[week.today] ?? weekDates[0] ?? "";
   const [monthCursor, setMonthCursor] = useState(
-    () => new Date(`${todayKey || "2026-09-21"}T12:00:00`),
+    () => new Date(`${todayKey || localDate(week.now)}T12:00:00`),
   );
   const [selectedDate, setSelectedDate] = useState(todayKey);
 

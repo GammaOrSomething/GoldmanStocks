@@ -9,7 +9,6 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "seed": "bun run scripts/seed.ts",
     "format": "prettier --write ."
   },
   "overrides": {

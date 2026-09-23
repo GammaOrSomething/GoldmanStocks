@@ -5,10 +5,10 @@ import type { Plant } from "../types";
 import { clientNameByProject } from "./lookups";
 import { toPlant } from "./mappers";
 import { latLngToPlan } from "../geo";
-import { bumpClientCounter, nextId } from "./ids";
+import { nextId } from "./ids";
 import { getAuthedClient } from "./session";
 
-/** Replaces the `plants` array in rootline-data.ts. */
+/** Every plant and area in the register. */
 export const listPlants = createServerFn({ method: "GET" }).handler(
   async (): Promise<Plant[]> => {
     const [{ data, error }, clientByProject] = await Promise.all([
@@ -22,7 +22,7 @@ export const listPlants = createServerFn({ method: "GET" }).handler(
   },
 );
 
-/** Mirrors `projectPlants()` in rootline-data.ts. */
+/** The plants and areas at one site. */
 export const projectPlants = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Plant[]> => {
@@ -78,7 +78,7 @@ export const savePlant = createServerFn({ method: "POST" })
     const db = await getAuthedClient();
     const { data: project, error: projectError } = await db
       .from("projects")
-      .select("lat, lng, client_id")
+      .select("lat, lng")
       .eq("id", data.projectId)
       .single();
     if (projectError) throw new Error(projectError.message);
@@ -124,6 +124,5 @@ export const savePlant = createServerFn({ method: "POST" })
     let { error } = await insert(withGps);
     if (error && gps && isMissingColumn(error)) ({ error } = await insert(row));
     if (error) throw new Error(error.message);
-    await bumpClientCounter(db, project.client_id, "plants");
     return { id };
   });

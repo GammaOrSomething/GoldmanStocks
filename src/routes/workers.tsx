@@ -22,7 +22,7 @@ export const Route = createFileRoute("/workers")({
       {
         name: "description",
         content:
-          "Crew overview: planned hours per worker this week, languages and worker app invites.",
+          "Crew overview: planned hours per worker this week and languages.",
       },
       { property: "og:title", content: "Workers — Goldman Stocks" },
       {

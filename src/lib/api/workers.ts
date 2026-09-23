@@ -6,7 +6,7 @@ import { toWorker } from "./mappers";
 import { companyId, nextId } from "./ids";
 import { getAuthedClient } from "./session";
 
-/** Replaces the `workers` array in rootline-data.ts. */
+/** Every worker in the company. */
 export const listWorkers = createServerFn({ method: "GET" }).handler(
   async (): Promise<Worker[]> => {
     const { data, error } = await (

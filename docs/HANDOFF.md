@@ -48,7 +48,7 @@ No `bun` installed? `npx bun@1.4.2 <command>` works the same.
 | --- | --- |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | public, needed at build time |
 | `SUPABASE_SERVICE_ROLE_KEY` | server only — photo storage, signed URLs |
-| `DEMO_BOSS_EMAIL`, `DEMO_BOSS_PASSWORD` | the Supabase user the app auto-signs-in as (`src/lib/api/session.ts`). Any auth user works — the RLS policy (migration 0002) gives every signed-in user full access. Get the shared demo login from the team, or create your own user in Supabase → Authentication. **Don't run `bun run seed` just to get a login — it wipes the shared database.** |
+| `DEMO_BOSS_EMAIL`, `DEMO_BOSS_PASSWORD` | the Supabase user the app auto-signs-in as (`src/lib/api/session.ts`). Any auth user works — the RLS policy (migration 0002) gives every signed-in user full access. Get the shared demo login from the team, or create your own user in Supabase → Authentication.  |
 | `OPENAI_API_KEY` | plan explanation + drafted offers (`OPENAI_MODEL` optional, default `gpt-4o`) |
 | `LOVABLE_PREVIEW_HOST` | optional, local dev only (lets `/__l5e/` Lovable assets load) |
 
@@ -65,8 +65,8 @@ No `bun` installed? `npx bun@1.4.2 <command>` works the same.
   Finishing a job with a photo now also writes a care event and updates the plant's last-care date
   (`completeTask` in `src/lib/server/photos.ts`).
 - **Dates:** "Today" and due dates use the real date. They used to be pinned to 21 Sep 2026.
-- **Mock data file:** `src/lib/rootline-data.ts` is only seed/test material now. Display labels live in
-  `src/lib/labels.ts`.
+- **No mock data:** the mock data file and seed script are gone. Tests use the small fixture in
+  `src/lib/__fixtures__/week.ts`. Display labels live in `src/lib/labels.ts`.
 
 ### 2. Create and edit records
 - **Server functions** (zod-validated, create-or-update): `saveClient`, `saveWorker`, `saveSite`,
@@ -253,9 +253,9 @@ optional and makes a task a **one-off** on that calendar date instead. Both kind
 - **The report is photo-driven, and `tasks` has no date.** A task is a recurring weekly template
   (`day` 0-6 + `start` hour), so `task_photos.taken_at` is the only real date on finished work.
   A job completed without a photo cannot be placed in a month at all.
-- **`clients.hours_this_month` is a static seeded number** shown on `/clients` and the dashboard.
-  It is not computed from anything and will not agree with what the report shows. Left alone
-  deliberately.
+- **Client sites, plants and hours are calculated** (`src/lib/client-stats.ts`), not read from the
+  old counter columns. Hours are the durations of jobs proven with a photo this month, counted
+  once per job per day.
 - **The report reads through the service-role client** with a `clientId` straight off the URL, so
   it bypasses RLS. Fine while every session signs in as the same demo boss; `signPhotoUrls` is a
   separate function so the data queries can move to `getAuthedClient()` when real tenancy lands.

@@ -5,7 +5,7 @@ import { clientNameByProject } from "./lookups";
 import { toTask } from "./mappers";
 import { getAuthedClient } from "./session";
 
-/** Replaces the `tasks` array in rootline-data.ts. */
+/** Every task in the plan. */
 export const listTasks = createServerFn({ method: "GET" }).handler(
   async (): Promise<Task[]> => {
     const [{ data, error }, clientByProject] = await Promise.all([
@@ -23,7 +23,7 @@ export const listTasks = createServerFn({ method: "GET" }).handler(
   },
 );
 
-/** Mirrors `projectTasks()` in rootline-data.ts. */
+/** The tasks at one site. */
 export const projectTasks = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Task[]> => {

@@ -64,7 +64,3 @@ notify pgrst, 'reload schema';
   Management API. Existing plants were deliberately left `null`: that is what makes them keep
   following their site when it is moved on the map (`src/lib/geo.ts`, `plantPosition`).
 
-## Demo data
-
-`bun run seed` wipes and reseeds from `src/lib/rootline-data.ts`, and creates the
-`DEMO_BOSS_EMAIL` account the app auto-signs-in as, linked to worker `w1`.
