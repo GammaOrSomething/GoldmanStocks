@@ -16,6 +16,7 @@ export type CareEntry = {
 export const plantCareEvents = createServerFn({ method: "GET" })
   .validator(z.string().min(1))
   .handler(async ({ data: plantId }): Promise<CareEntry[]> => {
+    if (!z.uuid().safeParse(plantId).success) return [];
     const db = await getAuthedClient();
     const [events, workers] = await Promise.all([
       db

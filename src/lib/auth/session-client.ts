@@ -5,7 +5,7 @@ import {
 
 import { supabase } from "@/lib/supabase/client";
 
-import { OFFLINE, signUpErrorMessage } from "./errors";
+import { OFFLINE, signInErrorMessage, signUpErrorMessage } from "./errors";
 
 /**
  * Sign-in and sign-out run in the browser, not in a server function.
@@ -18,14 +18,7 @@ import { OFFLINE, signUpErrorMessage } from "./errors";
 
 export async function signIn(email: string, password: string): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (!error) return;
-  if (isAuthRetryableFetchError(error)) throw new Error(OFFLINE);
-  // Don't reveal whether the email exists; do pass on "too many attempts".
-  throw new Error(
-    error.status === 429
-      ? "Too many attempts. Wait a minute and try again."
-      : "Wrong email or password.",
-  );
+  if (error) throw new Error(signInErrorMessage(error));
 }
 
 /**

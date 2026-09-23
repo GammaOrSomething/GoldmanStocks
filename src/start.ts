@@ -6,20 +6,22 @@ import {
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 
 import { renderErrorPage } from "./lib/error-page";
+import { responseHeaders } from "./lib/response-headers";
 
-/**
- * Every page and server-function response is private to the signed-in user, so no browser or
- * CDN may keep a copy. A cached page would show one person's data to the next person.
- */
-const noStoreMiddleware = createMiddleware().server(async ({ next }) => {
+// Vercel sets VERCEL=1 at runtime; see ./lib/response-headers for what each header is for.
+const HEADERS = responseHeaders(globalThis.process?.env?.["VERCEL"] === "1");
+
+const headersMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next();
   try {
-    result.response.headers.set("Cache-Control", "private, no-store");
+    for (const [name, value] of Object.entries(HEADERS))
+      result.response.headers.set(name, value);
     return result;
   } catch {
     // Some responses come with read-only headers; copy them into a new one.
     const headers = new Headers(result.response.headers);
-    headers.set("Cache-Control", "private, no-store");
+    for (const [name, value] of Object.entries(HEADERS))
+      headers.set(name, value);
     return {
       ...result,
       response: new Response(result.response.body, {
@@ -56,5 +58,5 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [noStoreMiddleware, errorMiddleware, csrfMiddleware],
+  requestMiddleware: [headersMiddleware, errorMiddleware, csrfMiddleware],
 }));

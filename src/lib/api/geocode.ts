@@ -68,7 +68,7 @@ async function nominatim(path: string, params: Record<string, string>) {
 }
 
 export const searchAddress = createServerFn({ method: "GET" })
-  .validator(z.string().trim().min(3, "Type at least 3 characters"))
+  .validator(z.string().trim().min(3, "Type at least 3 characters").max(200))
   .handler(async ({ data: query }): Promise<Place[]> => {
     const results = (await nominatim("/search", {
       q: query,
@@ -79,7 +79,12 @@ export const searchAddress = createServerFn({ method: "GET" })
 
 /** The address at a point — fills in the form when a site is placed by clicking the map. */
 export const addressAt = createServerFn({ method: "GET" })
-  .validator(z.object({ lat: z.number(), lng: z.number() }))
+  .validator(
+    z.object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+    }),
+  )
   .handler(async ({ data }): Promise<Place | null> => {
     const result = (await nominatim("/reverse", {
       lat: String(data.lat),

@@ -25,6 +25,14 @@ export const listWorkers = createServerFn({ method: "GET" }).handler(
 /** Worker colours come from the theme's chart palette, so they work in light and dark mode. */
 const PALETTE = [1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`);
 
+/**
+ * A palette colour or a plain hex one. The colour is written into inline styles, so nothing
+ * else (a `url(...)`, say) may get in.
+ */
+export const WorkerColor = z
+  .string()
+  .regex(/^(var\(--chart-[1-5]\)|#[0-9a-fA-F]{6})$/, "Pick a colour");
+
 export const WorkerInput = z.object({
   /** omit to add a new worker */
   id: z.uuid().optional(),
@@ -32,7 +40,7 @@ export const WorkerInput = z.object({
   /** job title, e.g. "Head gardener" */
   role: z.string().trim().min(1, "Role is required").max(100),
   language: Language,
-  color: z.string().max(32).optional(),
+  color: WorkerColor.optional(),
 });
 export type WorkerInput = z.infer<typeof WorkerInput>;
 

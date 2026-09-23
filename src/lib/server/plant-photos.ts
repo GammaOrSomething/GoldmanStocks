@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod/v4";
 
+import { PHOTO_EXTENSIONS } from "@/lib/photo-types";
 import type { Database } from "@/lib/supabase/types";
-import { PHOTO_BUCKET, PHOTO_EXTENSIONS, PhotoContentType } from "./photos";
+import { PHOTO_BUCKET, PhotoContentType, uploadError } from "./photos";
 
 /**
  * A plant's own picture, taken when a worker registers it. Same private bucket as job proof,
@@ -31,7 +32,7 @@ export async function createPlantPhotoUpload(
   const { data, error } = await db.storage
     .from(PHOTO_BUCKET)
     .createSignedUploadUrl(path);
-  if (error) throw new Error(error.message);
+  if (error) throw uploadError(error);
   return { ...data, bucket: PHOTO_BUCKET };
 }
 

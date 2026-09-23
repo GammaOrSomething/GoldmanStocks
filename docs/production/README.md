@@ -12,13 +12,13 @@ _Updated during the third 23 Sep 2026 session._
 
 **Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
 
-| Branch                   | Contains      | State                                                                             |
-| ------------------------ | ------------- | --------------------------------------------------------------------------------- |
-| `chore/remove-demo-data` | A1            | done                                                                              |
-| `chore/remove-dead-code` | A2 + this doc | done                                                                              |
-| `feat/real-login`        | B             | done, reviewed, fixes in                                                          |
-| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass              |
-| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles, signup pages and photos done; all checks pass |
+| Branch                   | Contains      | State                                                                                           |
+| ------------------------ | ------------- | ----------------------------------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                                            |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                                            |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                                                        |
+| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass                            |
+| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles, signup pages and photos done, and reviewed; all checks pass |
 
 **To resume D1** (`git checkout feat/cut-over`):
 
@@ -45,7 +45,8 @@ _Updated during the third 23 Sep 2026 session._
      - task proof goes to `<company>/tasks/<task>/…` and is recorded by one `complete_task` call;
      - a plant's picture goes to `<company>/plants/<uuid>` and is saved as `plants.photo_path` in the same insert as the plant (`attachPlantPhoto` is gone);
      - the photo, plant-photo and report functions run on the user's own session; only the weather cache still uses the admin key.
-   - 161 unit tests, typecheck, lint and build pass, and the 86 database checks.
+   - **Reviewed** for security and bugs (see [Review of D1 so far](#review-of-d1-so-far)); the fixes are in.
+   - 182 unit tests, typecheck, lint and build pass, and the 86 database checks.
 2. **Next, in this order:**
    1. **Worker app:**
       - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
@@ -80,7 +81,8 @@ With Docker: `bun run db:start`, then `bun run test:rls`, then run the app again
 - turn off public sign-ups on the demo project;
 - rotate the leaked keys;
 - install Docker, or accept that D1 can only be fully tested against the new Supabase project;
-- set up SMTP before D1/D2 go live.
+- set up SMTP before D1/D2 go live;
+- **a signup CAPTCHA is required before production** (see the review below); I need your Cloudflare Turnstile keys to build it.
 
 ## Where we're going
 
@@ -313,6 +315,46 @@ Also fixed:
 
 **Verified:** 161 unit tests (8 new: the `complete_task` call and its errors, company and task folders, uuid ids, plant photo paths, the report's bad id), typecheck, lint, build, and the 86 database checks.
 
+### Review of D1 so far
+
+**Scope:** everything on `feat/cut-over` up to the photos step (data layer, roles, signup/onboarding/confirm pages, photos), checked for security holes and bugs.
+
+**What held up:**
+
+- No way was found to read or change another company's data. Every server function runs on the caller's own session, links between rows carry the company, `requireBoss` guards office work, and the database refuses a worker's writes regardless.
+- Photo paths are checked in the app, in `complete_task` and in the storage policies.
+- The hand-written `types.ts` matches the migrations column for column, and every function signature.
+
+**Fixed:**
+
+- **HIGH: the AI features could run up the OpenAI bill.** Signup is open, so anyone can become a boss and get 50 + 50 AI calls a day. The plan explainer accepted input of any size and passed free text through, so it worked as a general chatbot on our key.
+  - Every field sent to `explainPlan` and `draftOffers` is now bounded (lengths, counts, ranges, dates).
+  - The whole request is capped at 60,000 characters (`MAX_PROMPT_CHARS` in `src/lib/server/llm.server.ts`).
+  - Both calls cap the reply length (`max_completion_tokens`).
+  - A site with many plants lists the first 10 and counts the rest, so a big site stays cheap.
+- **Bug: drafting offers could fail after the AI call was paid for.** The rows were inserted only after the call, and the insert failed for a non-uuid id, a description over 200 characters, or a model-written subject over 200. Ids are now checked first, and text is shortened to the table's limits.
+- **Clickjacking:** any site could load the app in a hidden frame. On Vercel, every response now says only this site may frame it (`frame-ancestors 'self'`, `X-Frame-Options: SAMEORIGIN`), plus `nosniff` and a referrer policy (`src/lib/response-headers.ts`).
+  - They're set by the app itself, because `vercel.json` headers don't apply when the build writes Vercel's output.
+  - They're only on Vercel, because the Lovable editor shows the app in a frame of its own.
+  - Checked by running the Vercel build's function locally.
+- **Bug: an unconfirmed account was told "Wrong email or password".** It's now told to confirm its email. This reveals nothing, since Supabase only says so when the password was right (`signInErrorMessage` in `src/lib/auth/errors.ts`).
+- **Bug: some phone photos failed with an unreadable error.** A photo with no type is treated as a JPEG, and an unsupported one gets a plain message before anything is uploaded. The accepted types live in one place, `src/lib/photo-types.ts`, shared by the browser and the server.
+- **Storage trouble looked like a permission problem.** Only a real refusal says "You can't add a photo to this task"; anything else says to try again.
+- **Loose inputs:**
+  - a worker's colour must be a palette colour or a hex one, because it's written into inline styles;
+  - a malformed plant id returns an empty care history instead of a database error;
+  - address search is capped at 200 characters and coordinates at the globe.
+
+**Not fixed; needs you or a later step:**
+
+- **CAPTCHA before production.** Open signup lets anyone send confirmation emails from our domain to any address, and each account gets its own AI allowance. Supabase caps emails per hour for the whole project, so a flood also blocks real signups, invites and resets. A signup CAPTCHA (Cloudflare Turnstile, which Supabase supports) was optional in E; it's now required before production. See [Your checklist](#your-checklist-things-only-you-can-do).
+- The rest is listed under [Known limitations](#known-limitations).
+
+**Verified:**
+
+- 182 unit tests (21 new), typecheck, lint, build, and the 86 database checks.
+- The Vercel build's function run locally: pages get the frame headers with `VERCEL=1` and not without.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -344,6 +386,9 @@ Also fixed:
   - Redirect URLs: production, the Vercel preview wildcard, and `http://localhost:8080/**`.
   - Email confirmation on.
   - Minimum password length 10.
+  - Rate limits (Authentication → Rate Limits): keep sign-ups and emails per hour modest.
+- [ ] **Create a Cloudflare Turnstile site** for the production domain and give me the site key; the secret key goes into Supabase (Authentication → Attack Protection). The signup CAPTCHA can't go live without them.
+- [ ] After the first Vercel preview deploy, check the headers: `curl -sI https://<preview>/login` should show `content-security-policy: frame-ancestors 'self'`.
 - [ ] Tag the last pre-D1 commit `demo-final`. Its Vercel deployment stays up as the live demo.
 
 ---
@@ -363,6 +408,10 @@ The full technical plan (schema, access rules, file-by-file changes, risks) is i
 [technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
 
 ## Known limitations
+
+- **Orphaned photos:** any member can upload plant pictures (up to 10 MB each) that never end up on a plant, and nothing cleans them up. A clean-up job belongs with E.
+- **Saving a client or site isn't atomic:** if saving its terms or crew fails after a new client or site was inserted, the new row stays, and pressing Save again makes a duplicate. The fix is one database function per save.
+- **Updates to a missing id succeed silently:** `saveClient`, `saveWorker` and `moveSite` report success when the id matches nothing (another company's row, say). Nothing is changed, but the caller isn't told.
 
 - **The work date uses the hardcoded company time zone.** `completeTask` works out the local date with `COMPANY_TZ` (Tallinn), not `companies.timezone`. `complete_task` accepts ±1 day around the company's today, so this only matters for a company far from Tallinn. Switching to the company's zone is in E.
 - **Row limit on client counts:**

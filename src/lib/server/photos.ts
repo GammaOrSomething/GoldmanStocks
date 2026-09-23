@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod/v4";
 
+import {
+  PHOTO_EXTENSIONS,
+  PHOTO_TYPES,
+  type PhotoType,
+} from "@/lib/photo-types";
 import type { Database } from "@/lib/supabase/types";
 import type { TaskPhoto } from "@/lib/types";
 import { localDate } from "@/lib/weather";
@@ -20,16 +25,8 @@ type Client = SupabaseClient<Database>;
 
 export const PHOTO_BUCKET = "task-photos";
 
-export const PHOTO_EXTENSIONS = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/heic": "heic",
-} as const;
-export type PhotoContentType = keyof typeof PHOTO_EXTENSIONS;
-export const PhotoContentType = z.enum(
-  Object.keys(PHOTO_EXTENSIONS) as [PhotoContentType],
-);
+export const PhotoContentType = z.enum(PHOTO_TYPES);
+export type PhotoContentType = PhotoType;
 
 export const PhotoUploadInput = z.object({
   taskId: z.uuid(),
@@ -53,6 +50,26 @@ export function photoFolder(companyId: string, taskId: string) {
   return `${companyId}/tasks/${taskId}/`;
 }
 
+/**
+ * The storage policy refuses a task assigned to someone else. Storage reports that as HTTP 400
+ * with `statusCode: "403"` and a row-level security message. Anything else is storage trouble,
+ * and saying "you can't" would send the worker to their boss for nothing.
+ */
+export function uploadError(
+  error: Error & {
+    status?: number | undefined;
+    statusCode?: string | undefined;
+  },
+): Error {
+  const refused =
+    error.status === 403 ||
+    error.statusCode === "403" ||
+    /unauthori[sz]ed|row-level security/i.test(error.message);
+  return refused
+    ? new Error("You can't add a photo to this task")
+    : new Error("Couldn't prepare the upload. Try again", { cause: error });
+}
+
 /** Step 1: a signed URL the worker's phone can upload one photo to (valid for 2 hours). */
 export async function createPhotoUploadUrl(
   db: Client,
@@ -72,8 +89,7 @@ export async function createPhotoUploadUrl(
   const { data, error } = await db.storage
     .from(PHOTO_BUCKET)
     .createSignedUploadUrl(path);
-  // The storage policy refuses a task assigned to someone else.
-  if (error) throw new Error("You can't add a photo to this task");
+  if (error) throw uploadError(error);
   return data; // { signedUrl, token, path }
 }
 

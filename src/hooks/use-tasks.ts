@@ -10,6 +10,7 @@ import {
   type TaskPatch,
 } from "@/lib/api/tasks";
 import { getPref } from "@/lib/phone-prefs";
+import { PHOTO_TYPE_ERROR, photoType } from "@/lib/photo-types";
 import { completeTask, createPhotoUploadUrl } from "@/lib/photos.functions";
 import { supabase } from "@/lib/supabase/client";
 import type { Task } from "@/lib/types";
@@ -79,8 +80,10 @@ export function useTaskActions() {
    */
   const completeWithPhoto = useMutation({
     mutationFn: async ({ taskId, file }: { taskId: string; file: File }) => {
+      const contentType = photoType(file);
+      if (!contentType) throw new Error(PHOTO_TYPE_ERROR);
       const upload = await createPhotoUploadUrl({
-        data: { taskId, contentType: file.type as "image/jpeg" },
+        data: { taskId, contentType },
       });
       const { error } = await supabase.storage
         .from(upload.bucket)

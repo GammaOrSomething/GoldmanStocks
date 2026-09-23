@@ -1,32 +1,55 @@
 import type OpenAI from "openai";
 import { z } from "zod/v4";
 
-import { assertNotRefused, MODEL, toLlmError } from "./llm.server";
+import {
+  assertNotRefused,
+  fitsPrompt,
+  MAX_PROMPT_CHARS,
+  MODEL,
+  toLlmError,
+} from "./llm.server";
+
+/** Longest reply the model may write: 3–5 sentences, with room for a reasoning model. */
+const MAX_REPLY_TOKENS = 1000;
+
+const text = (max: number) => z.string().max(max);
 
 const Stop = z.object({
-  start: z.number(),
-  duration: z.number(),
-  title: z.string(),
-  client: z.string(),
-  site: z.string(),
-  weatherNote: z.string().optional(),
+  start: z.number().min(0).max(24),
+  duration: z.number().min(0).max(24),
+  title: text(200),
+  client: text(200),
+  site: text(200),
+  weatherNote: text(1000).optional(),
 });
 
-/** The day's plan as the dashboard shows it — built from planner.proposeDay(). */
-export const ExplainPlanInput = z.object({
-  date: z.string(),
-  weather: z.object({ tempC: z.number().nullable(), note: z.string() }),
-  workers: z.array(
-    z.object({
-      name: z.string(),
-      role: z.string(),
-      hours: z.number(),
-      km: z.number(),
-      stops: z.array(Stop),
-      skipped: z.array(Stop),
+/**
+ * The day's plan as the dashboard shows it — built from planner.proposeDay(). Every field is
+ * bounded, and so is the whole (see MAX_PROMPT_CHARS): this is sent to OpenAI on our key.
+ */
+export const ExplainPlanInput = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    weather: z.object({
+      tempC: z.number().min(-100).max(100).nullable(),
+      note: text(500),
     }),
-  ),
-});
+    workers: z
+      .array(
+        z.object({
+          name: text(200),
+          role: text(200),
+          hours: z.number().min(0).max(24),
+          km: z.number().min(0).max(10_000),
+          stops: z.array(Stop).max(50),
+          skipped: z.array(Stop).max(50),
+        }),
+      )
+      .max(100),
+  })
+  .refine(fitsPrompt, {
+    message: `This plan is too large to explain (over ${MAX_PROMPT_CHARS} characters)`,
+  });
 export type ExplainPlanInput = z.infer<typeof ExplainPlanInput>;
 
 const SYSTEM = `You brief the owner of a Baltic landscaping company on today's crew plan, which \
@@ -49,6 +72,7 @@ export async function explainPlanWith(
         { role: "system", content: SYSTEM },
         { role: "user", content: JSON.stringify(plan) },
       ],
+      max_completion_tokens: MAX_REPLY_TOKENS,
     });
     const message = completion.choices[0]?.message;
     if (!message) throw new Error("empty response");

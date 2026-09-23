@@ -319,9 +319,8 @@ This closes the biggest hole right away. It only checks signed in versus signed 
   - inviting a worker → the worker sets a password → completes a task;
   - password reset.
 - **Docs:** rewrite `docs/HANDOFF.md`, `docs/deploy-vercel.md` and the README. Delete or archive `docs/TODO.md` and `docs/backend-tasks.md`.
-- **Optional:**
-  - a CAPTCHA on signup (Cloudflare Turnstile, supported by Supabase);
-  - use `companies.timezone` instead of the hardcoded `COMPANY_TZ` in `src/lib/weather.ts`.
+- **Required before production** (the D1 review): a CAPTCHA on signup (Cloudflare Turnstile, supported by Supabase). Open signup otherwise lets anyone send confirmation emails to any address and create accounts that each get their own AI allowance.
+- **Optional:** use `companies.timezone` instead of the hardcoded `COMPANY_TZ` in `src/lib/weather.ts`.
 - **Record the next data-model change:** a task row is a repeating weekly template but also stores `status`, so it needs per-date occurrences. Out of scope here.
 
 ---

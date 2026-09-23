@@ -8,6 +8,7 @@ import { useRefreshData } from "@/hooks/use-data";
 import { savePlant, type PlantInput } from "@/lib/api/plants";
 import { getPref } from "@/lib/phone-prefs";
 import { setCaptureHandler } from "@/lib/photo-store";
+import { PHOTO_TYPE_ERROR, photoType } from "@/lib/photo-types";
 import { createPlantPhotoUpload } from "@/lib/plants.functions";
 import { supabase } from "@/lib/supabase/client";
 import { useActiveWorker, useWorkerProjects } from "@/lib/worker-store";
@@ -23,12 +24,6 @@ const kinds: PlantInput["kind"][] = [
   "Flower bed",
   "Shrub",
 ];
-const PHOTO_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-] as const;
 
 /**
  * Register a plant where it stands: photo, what it is, which site and area, and the phone's GPS
@@ -95,10 +90,9 @@ function NewPlant() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const contentType = (file.type ||
-      "image/jpeg") as (typeof PHOTO_TYPES)[number];
-    if (!PHOTO_TYPES.includes(contentType)) {
-      toast.error("Use a JPEG, PNG, WebP or HEIC photo");
+    const contentType = photoType(file);
+    if (!contentType) {
+      toast.error(PHOTO_TYPE_ERROR);
       return;
     }
     setPreview(URL.createObjectURL(file));

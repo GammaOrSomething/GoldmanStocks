@@ -5,26 +5,65 @@ import { z } from "zod/v4";
 
 import type { Offer, OfferStatus } from "@/lib/types";
 
-import { assertNotRefused, MODEL, toLlmError } from "./llm.server";
+import {
+  assertNotRefused,
+  fitsPrompt,
+  MAX_PROMPT_CHARS,
+  MODEL,
+  toLlmError,
+} from "./llm.server";
 
-/** Opportunities from outreach.findOpportunities(), as sent by the dashboard. */
-export const DraftOffersInput = z.object({
-  opportunities: z
-    .array(
-      z.object({
-        clientId: z.string(),
-        projectId: z.string(),
-        client: z.string(),
-        contact: z.string(),
-        what: z.string(),
-        value: z.number(),
-        dueDate: z.string(),
-        items: z.array(z.string()),
-      }),
-    )
-    .min(1)
-    .max(20),
-});
+/** Longest reply: up to 20 offers of about 120 words each, as JSON. */
+const MAX_REPLY_TOKENS = 6000;
+
+/** Plants listed per offer in the prompt; the rest are counted, so a big site stays cheap. */
+export const MAX_ITEMS_IN_PROMPT = 10;
+
+/** Column limits on `offers` (see the core migration). */
+const OFFER_LIMITS = { what: 200, subject: 200, body: 20_000 } as const;
+
+const clamp = (value: string, max: number) =>
+  value.length > max ? `${value.slice(0, max - 1)}…` : value;
+
+/**
+ * Opportunities from outreach.findOpportunities(), as sent by the dashboard. Bounded, field by
+ * field and as a whole (see MAX_PROMPT_CHARS), because it goes to OpenAI on our key; and shaped
+ * to fit the `offers` table, so an insert can't fail after the call has been paid for.
+ */
+export const DraftOffersInput = z
+  .object({
+    opportunities: z
+      .array(
+        z.object({
+          clientId: z.uuid(),
+          projectId: z.uuid(),
+          client: z.string().max(200),
+          contact: z.string().max(1000),
+          what: z
+            .string()
+            .max(1000)
+            .transform((what) => clamp(what, OFFER_LIMITS.what)),
+          value: z.number().min(0).max(1e9),
+          dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          items: z
+            .array(z.string().max(500))
+            .max(1000)
+            .transform((items) =>
+              items.length > MAX_ITEMS_IN_PROMPT
+                ? [
+                    ...items.slice(0, MAX_ITEMS_IN_PROMPT),
+                    `and ${items.length - MAX_ITEMS_IN_PROMPT} more plants`,
+                  ]
+                : items,
+            ),
+        }),
+      )
+      .min(1)
+      .max(20),
+  })
+  .refine(fitsPrompt, {
+    message: `Too much to draft at once (over ${MAX_PROMPT_CHARS} characters)`,
+  });
 export type DraftOffersInput = z.infer<typeof DraftOffersInput>;
 
 const OfferDrafts = z.object({
@@ -63,6 +102,7 @@ export async function draftOffersWith(
         { role: "user", content: JSON.stringify(input.opportunities) },
       ],
       response_format: zodResponseFormat(OfferDrafts, "offer_drafts"),
+      max_completion_tokens: MAX_REPLY_TOKENS,
     });
     const message = completion.choices[0]?.message;
     if (!message) throw new Error("empty response");
@@ -87,8 +127,8 @@ export async function draftOffersWith(
         what: opportunity.what,
         value: opportunity.value,
         dueDate: opportunity.dueDate,
-        subject: draft.subject,
-        body: draft.body,
+        subject: clamp(draft.subject, OFFER_LIMITS.subject),
+        body: clamp(draft.body, OFFER_LIMITS.body),
         status: "draft",
         createdAt,
         approvedAt: null,

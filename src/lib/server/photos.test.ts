@@ -8,6 +8,7 @@ import {
   completeTask,
   photoFolder,
   PhotoUploadInput,
+  uploadError,
 } from "./photos";
 
 // The storage and database rules are covered by the SQL security tests
@@ -149,5 +150,27 @@ describe("completeTask", () => {
     await expect(completeTask(db, COMPANY, valid)).rejects.toThrow(
       "the photo must have been taken today",
     );
+  });
+});
+
+describe("uploadError", () => {
+  test("a refusal by the storage policy says so", () => {
+    const refused = Object.assign(
+      new Error("new row violates row-level security policy"),
+      { status: 400, statusCode: "403" },
+    );
+    expect(uploadError(refused).message).toBe(
+      "You can't add a photo to this task",
+    );
+  });
+
+  test("storage trouble is not reported as a refusal", () => {
+    const outage = Object.assign(new Error("Internal Server Error"), {
+      status: 500,
+      statusCode: "500",
+    });
+    const error = uploadError(outage);
+    expect(error.message).toBe("Couldn't prepare the upload. Try again");
+    expect(error.cause).toBe(outage);
   });
 });
