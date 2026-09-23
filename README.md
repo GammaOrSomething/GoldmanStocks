@@ -18,12 +18,12 @@ cp .env.example .env   # fill in the values; see the comments in the file
 bun run dev            # http://localhost:8080
 ```
 
-| Command | What it does |
-| --- | --- |
-| `bun run dev` | local dev server |
-| `bun test` | unit tests (`*.test.ts` next to the code) |
+| Command         | What it does                                    |
+| --------------- | ----------------------------------------------- |
+| `bun run dev`   | local dev server                                |
+| `bun test`      | unit tests (`*.test.ts` next to the code)       |
 | `bun run build` | production build (needs the `VITE_*` variables) |
-| `bun run lint` | eslint + prettier |
+| `bun run lint`  | eslint + prettier                               |
 
 ## Where things are
 
@@ -34,6 +34,8 @@ bun run dev            # http://localhost:8080
 
 ## More
 
+- [docs/production/README.md](docs/production/README.md): the demo → production migration: progress,
+  your to-do checklist and next steps.
 - [docs/deploy-vercel.md](docs/deploy-vercel.md): hosting on Vercel.
 - [docs/HANDOFF.md](docs/HANDOFF.md): how the app is built. [docs/TODO.md](docs/TODO.md): open work.
 - This repo is connected to [Lovable](https://lovable.dev). See [AGENTS.md](AGENTS.md) before pushing.

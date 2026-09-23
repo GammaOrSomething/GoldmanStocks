@@ -1,0 +1,164 @@
+# Demo → production migration log
+
+This is the running record of turning the hackathon demo into a real product: what was decided, what
+each change did, what you need to do by hand, and what comes next. It is updated with every PR.
+
+- **Started:** 23 Sep 2026
+- **Current step:** PR B, real login
+
+## Where we're going
+
+The demo has no real login. Every visitor is silently signed in, on the server, as one shared "demo
+boss" account. The worker app's "who am I" is a name picked from a list. The database lets any
+signed-in user read and write every row. The data came from a 700-line mock file.
+
+**The target:**
+
+| Decision               | What it means                                                                                                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open signup            | Anyone can sign up. Signing up creates a new company, and that person is its boss.                                                                                                                                   |
+| Workers join by invite | The boss adds a worker with an email address. The worker gets an invite, sets a password once and stays signed in on their phone.                                                                                    |
+| New Supabase project   | Production gets a fresh project built from clean migrations, with no seed data. The current project stays as the demo database.                                                                                      |
+| Production schema      | UUID ids, with a readable per-company plant code (`PL-0001`). `company_id` on every table. Proper worker-to-site links. Counts are calculated, not stored. Row-level security by company and role. Storage policies. |
+| Money is boss-only     | Monthly values and contract dates live in boss-only tables, and the database enforces it.                                                                                                                            |
+
+**Ground rules:**
+
+- Each step is its own branch and PR. `main` stays deployable, because Lovable syncs from it.
+- No force-pushes, and no rewriting pushed history.
+- Branches stay local until you say to push.
+
+## Progress
+
+| Step | What                                                              | State       | Branch                                  |
+| ---- | ----------------------------------------------------------------- | ----------- | --------------------------------------- |
+| A1   | Remove demo data and fake numbers                                 | Done        | `chore/remove-demo-data`                |
+| A2   | Remove dead code and template leftovers                           | Done        | `chore/remove-dead-code` (on top of A1) |
+| B    | Real login (still on the demo database)                           | In progress | `feat/real-login` (on top of A2)        |
+| C    | New database schema, Supabase CLI, security tests                 | Not started |                                         |
+| D1   | Switch the app to the new project: signup, roles, company scoping | Not started |                                         |
+| D2   | Worker invites and password reset                                 | Not started |                                         |
+| E    | End-to-end tests, CAPTCHA, final docs                             | Not started |                                         |
+
+---
+
+### A1: remove demo data and fake numbers
+
+**Why:** the app read everything from the database already, but the mock dataset, seed script and
+some hardcoded values were still in the code, and several screens showed numbers that were fixed or
+made up.
+
+**What changed:**
+
+- **Deleted:**
+  - the mock data file (`src/lib/rootline-data.ts`);
+  - the seed-only helpers (`src/lib/plant-care.ts`);
+  - the seed script and the one-off coordinate-fix script (`scripts/`);
+  - the `seed` command.
+- **Tests** now use a small, neutral fixture: `src/lib/__fixtures__/week.ts`. The planner and outreach tests still assert the same behaviour.
+- **Care intervals** (days between visits per plant kind) moved to `src/lib/care-intervals.ts`.
+- **Repeat-work offers** (`src/lib/outreach.ts`):
+  - Before: a plant with no care history was treated as last cared for on 1 Sep 2026, so it always looked overdue and produced a false offer.
+  - Now: it uses the plant's scheduled next care, or is skipped.
+- **Client numbers are calculated** (`src/lib/client-stats.ts`, used by `listClients`):
+  - Sites and plants are counted from the actual records. Before, they were stored counters that only ever went up.
+  - "Hours this month" is the durations of jobs proven with a photo this month, counted once per job per day. Before, it was a fixed number from the seed.
+- **Fake UI removed:**
+  - the always-on "Live" badge and the static "AI plan ready" sidebar card;
+  - "Sent to crew" now reads "Approved" (nothing is sent);
+  - "plants under care" counts real plants;
+  - the schedule no longer falls back to 21 Sep 2026.
+
+**Review:** a code-review pass found no blocking bugs. Fixed:
+
+- the `/clients` hours bar divided by zero when no client had hours yet;
+- docs still pointed at deleted scripts.
+
+One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
+
+**Verified:**
+
+- 111 tests pass (7 new);
+- typecheck, lint and production build are clean;
+- every page renders against the demo database.
+
+### A2: remove dead code and template leftovers
+
+**What changed:**
+
+- **Unused UI:** deleted 28 UI components and a hook that nothing imported, plus the 25 packages only they used. Kept `dropdown-menu`, `avatar`, `alert` and `separator` for the login UI.
+- **Lint:** `bun run lint` was scanning build output. It took about 10 minutes and reported 93,000 errors. It now ignores build folders and finishes in 2 seconds with 0 errors. The template files it flagged were formatted.
+- **Template leftovers:**
+  - replaced the template README;
+  - renamed the package to `goldman-stocks`;
+  - removed an obsolete Lovable dev workaround (`LOVABLE_PREVIEW_HOST`; the logo is bundled now);
+  - removed a stale `.gitignore` entry;
+  - removed `scripts/` from `tsconfig.json`;
+  - switched to a plain `twitter:card`, since there's no share image.
+
+**Verified:**
+
+- 111 tests pass;
+- lint shows 0 errors (2 harmless warnings from standard UI files);
+- the build passes;
+- all 11 pages return 200 from the dev server.
+
+---
+
+## Your checklist (things only you can do)
+
+**Now, before anything is merged**
+
+- [ ] **Rotate the leaked credentials in the demo Supabase project:** database password, anon and service-role keys, and the OpenAI key. `docs/TODO.md` §7 says they were pasted into AI chats. Update them in `.env`, Vercel and Lovable, then redeploy.
+- [ ] Delete the stray auth user `kristers-local@rootline.demo` (Supabase → Authentication).
+
+**After B is merged**
+
+- [ ] Remove `DEMO_BOSS_EMAIL` and `DEMO_BOSS_PASSWORD` from Vercel and Lovable. That account becomes an ordinary login for whoever demos the app.
+
+**Before D1 (the switch to the new database)**
+
+- [ ] Create the production Supabase project in `eu-west-2`, the same region as today.
+- [ ] Set up custom email sending (SMTP), e.g. Resend, Postmark or SES, with SPF/DKIM on your domain. **Required:** Supabase's built-in sender only emails your own team members, so signup confirmations and worker invites won't arrive without it.
+- [ ] Auth settings:
+  - Site URL = the production domain.
+  - Redirect URLs: production, the Vercel preview wildcard, and `http://localhost:8080/**`.
+  - Email confirmation on.
+  - Minimum password length 10.
+- [ ] Tag the last pre-D1 commit `demo-final`. Its Vercel deployment stays up as the live demo.
+
+---
+
+## Next steps
+
+1. **B: real login** (on the demo database)
+   - Remove the automatic demo sign-in.
+   - Add a login page, sign-out in both apps, and a guard that sends signed-out visitors to `/login`.
+   - Make the photo, report, AI and address-lookup functions require a session.
+   - Never cache signed-in pages.
+2. **C: new schema**
+   - Supabase CLI and local database.
+   - One clean baseline migration.
+   - Automated security tests proving company A can't see company B's data and workers can't do boss things.
+   - CI.
+   - No app changes; the old migrations are kept as `supabase/legacy-demo/`.
+3. **D1: switch to the new project**
+   - Signup and a company-setup step.
+   - Boss vs worker roles.
+   - Everything scoped to the company.
+   - Photos stored per company.
+   - The worker app uses the signed-in worker instead of a picker.
+4. **D2: worker invites and password reset.**
+5. **E: end-to-end tests and final docs.**
+
+The full technical plan (schema, access rules, file-by-file changes, risks) is in
+[technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
+
+## Known limitations
+
+- **Row limit on client counts:**
+  - The problem: client counts are calculated in the app from full table reads, and Supabase returns at most 1,000 rows per query. Past 1,000 plants or monthly proof photos, the counts would silently come out low.
+  - Now: harmless at demo size.
+  - Fix, planned for C/D1: a database function that calculates the counts server-side.
+- **Hours follow the current task:** client hours use each task's current duration and site. Editing a task changes hours already counted this month.
+- **Tasks double as weekly templates:** a task is a repeating weekly template, but its done/approved status is stored on the template itself. That needs per-date task occurrences, which is the next data-model change after this migration.
