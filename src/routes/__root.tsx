@@ -6,12 +6,15 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { resolveAccess } from "../lib/auth/access";
+import { viewerQuery } from "../lib/auth/viewer-query";
 
 function NotFoundComponent() {
   return (
@@ -78,6 +81,20 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
+    /**
+     * The one guard for every page: signed-out visitors go to the login page, and a signed-in
+     * user who lands on it goes on to where they were heading. The viewer is cached for the
+     * session (cleared on sign-in and sign-out), so this costs one request per page load, not
+     * one per navigation. Returning it puts it in every route's context.
+     *
+     * This only decides where to send people; server functions check the session themselves.
+     */
+    beforeLoad: async ({ context, location }) => {
+      const viewer = await context.queryClient.ensureQueryData(viewerQuery);
+      const target = resolveAccess(location, viewer);
+      if (target) throw redirect({ href: target });
+      return { viewer };
+    },
     head: () => ({
       meta: [
         { charSet: "utf-8" },

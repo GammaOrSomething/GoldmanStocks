@@ -3,13 +3,40 @@ import {
   createCsrfMiddleware,
   createMiddleware,
 } from "@tanstack/react-start";
+import { isNotFound, isRedirect } from "@tanstack/react-router";
 
 import { renderErrorPage } from "./lib/error-page";
+
+/**
+ * Every page and server-function response is private to the signed-in user, so no browser or
+ * CDN may keep a copy. A cached page would show one person's data to the next person.
+ */
+const noStoreMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next();
+  try {
+    result.response.headers.set("Cache-Control", "private, no-store");
+    return result;
+  } catch {
+    // Some responses come with read-only headers; copy them into a new one.
+    const headers = new Headers(result.response.headers);
+    headers.set("Cache-Control", "private, no-store");
+    return {
+      ...result,
+      response: new Response(result.response.body, {
+        status: result.response.status,
+        statusText: result.response.statusText,
+        headers,
+      }),
+    };
+  }
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
+    // Redirects (e.g. to the login page) and not-found are control flow, not failures.
+    if (isRedirect(error) || isNotFound(error)) throw error;
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
@@ -29,5 +56,5 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, csrfMiddleware],
+  requestMiddleware: [noStoreMiddleware, errorMiddleware, csrfMiddleware],
 }));

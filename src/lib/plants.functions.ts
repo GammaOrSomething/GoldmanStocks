@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getAuthedClient } from "@/lib/api/session";
 import { z } from "zod/v4";
 
 import {
@@ -17,6 +18,7 @@ import {
 export const createPlantPhotoUpload = createServerFn({ method: "POST" })
   .validator(PlantPhotoUploadInput)
   .handler(async ({ data }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     return createPlantPhotoUploadImpl(getAdminClient(), data);
   });
@@ -25,6 +27,7 @@ export const createPlantPhotoUpload = createServerFn({ method: "POST" })
 export const attachPlantPhoto = createServerFn({ method: "POST" })
   .validator(AttachPlantPhotoInput)
   .handler(async ({ data }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     return attachPlantPhotoImpl(getAdminClient(), data);
   });
@@ -33,6 +36,7 @@ export const attachPlantPhoto = createServerFn({ method: "POST" })
 export const getPlantPhotoUrl = createServerFn({ method: "GET" })
   .validator(z.string().min(1))
   .handler(async ({ data: plantId }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     return getPlantPhotoUrlImpl(getAdminClient(), plantId);
   });

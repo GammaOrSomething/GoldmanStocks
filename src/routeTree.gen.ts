@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MobileRouteImport } from './routes/mobile'
 import { Route as PlantsRouteImport } from './routes/plants'
 import { Route as ProjectsRouteImport } from './routes/projects'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MobileRoute = MobileRouteImport.update({
@@ -98,6 +104,7 @@ const ClientsClientIdReportRoute = ClientsClientIdReportRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/login': typeof LoginRoute
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
   '/schedule': typeof ScheduleRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
   '/plants': typeof PlantsRoute
   '/projects': typeof ProjectsRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/clients'
+    | '/login'
     | '/mobile'
     | '/plants'
     | '/projects'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/clients'
+    | '/login'
     | '/plants'
     | '/projects'
     | '/schedule'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/clients'
+    | '/login'
     | '/mobile'
     | '/plants'
     | '/projects'
@@ -196,6 +208,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientsRoute: typeof ClientsRoute
+  LoginRoute: typeof LoginRoute
   MobileRoute: typeof MobileRouteWithChildren
   PlantsRoute: typeof PlantsRoute
   ProjectsRoute: typeof ProjectsRoute
@@ -219,6 +232,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mobile': {
@@ -330,6 +350,7 @@ const MobileRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRoute,
+  LoginRoute: LoginRoute,
   MobileRoute: MobileRouteWithChildren,
   PlantsRoute: PlantsRoute,
   ProjectsRoute: ProjectsRoute,

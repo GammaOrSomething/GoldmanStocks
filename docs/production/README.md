@@ -4,7 +4,7 @@ This is the running record of turning the hackathon demo into a real product: wh
 each change did, what you need to do by hand, and what comes next. It is updated with every PR.
 
 - **Started:** 23 Sep 2026
-- **Current step:** PR B, real login
+- **Current step:** PR C, new database schema (B is done)
 
 ## Where we're going
 
@@ -34,7 +34,7 @@ signed-in user read and write every row. The data came from a 700-line mock file
 | ---- | ----------------------------------------------------------------- | ----------- | --------------------------------------- |
 | A1   | Remove demo data and fake numbers                                 | Done        | `chore/remove-demo-data`                |
 | A2   | Remove dead code and template leftovers                           | Done        | `chore/remove-dead-code` (on top of A1) |
-| B    | Real login (still on the demo database)                           | In progress | `feat/real-login` (on top of A2)        |
+| B    | Real login (still on the demo database)                           | Done        | `feat/real-login` (on top of A2)        |
 | C    | New database schema, Supabase CLI, security tests                 | Not started |                                         |
 | D1   | Switch the app to the new project: signup, roles, company scoping | Not started |                                         |
 | D2   | Worker invites and password reset                                 | Not started |                                         |
@@ -103,6 +103,42 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
 - the build passes;
 - all 11 pages return 200 from the dev server.
 
+### B: real login
+
+**Why:** anyone on the internet who opened the site was silently signed in as the demo boss and could read and change every record. This change removes that before anything else.
+
+**What changed:**
+
+- **No more automatic sign-in.** `getAuthedClient()` (`src/lib/api/session.ts`) now uses the caller's own session cookie. With no session, it sends them to `/login` instead of returning data. The `DEMO_BOSS_*` variables are no longer read.
+- **Login page** at `/login` (`src/routes/login.tsx`). Email and password, works at phone width, and returns you to the page you were trying to open.
+- **One guard for every page** (`src/routes/__root.tsx`, with the rules in `src/lib/auth/access.ts`):
+  - Signed-out visitors go to `/login?redirect=…`.
+  - A signed-in user on `/login` goes on to where they were heading.
+  - The `redirect` value is checked, so a crafted link can't send people to another site.
+- **Session expiry mid-use.** A data request that finds the session gone clears the cached data and goes to the login page (`src/router.tsx`).
+- **Sign-out** in the office header's account menu (`src/components/UserMenu.tsx`) and in worker app → Settings.
+- **Every server function now needs a session.** That includes the photo, plant-photo, client-report, AI plan explanation and address lookup functions, which previously ran for anyone.
+- **Nothing is cached.** Every page and data response is marked `Cache-Control: private, no-store`, so no browser or CDN can show one person's page to another.
+- **Redirects pass through the error handler** (`src/start.ts`) instead of becoming a 500 page.
+
+**Decision made along the way: sign-in happens in the browser, not on the server.** The plan said to sign in through a server function. But Supabase limits sign-in attempts per IP address, and every server-side sign-in would come from our server's single address, so a few typos across a company could lock everyone out for a while. Signing in from the browser keeps each person on their own address. The session cookie is the same either way, so the server reads it exactly as before.
+
+**What it does not do yet:** there are no roles and no company scoping. Any signed-in account still sees everything in the demo database; that's D1. The worker app still has the "whose jobs to show" picker until D1 links accounts to workers.
+
+**Verified:**
+
+- 123 tests pass (12 new, for the access rules), plus typecheck, lint and production build.
+- **Signed out:**
+  - Every private page answers `307 → /login?redirect=<that page>`.
+  - `/login` itself loads.
+  - Calling a data function directly returns only a redirect, no data.
+  - Cross-site calls are refused (403).
+- **Signed in:**
+  - Pages load with the account menu, and the client list returns real calculated numbers.
+  - `/login?redirect=/schedule` goes on to `/schedule`.
+  - `/login?redirect=//evil.com` goes to `/`.
+- Every response carries `Cache-Control: private, no-store`.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -114,7 +150,11 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
 
 **After B is merged**
 
-- [ ] Remove `DEMO_BOSS_EMAIL` and `DEMO_BOSS_PASSWORD` from Vercel and Lovable. That account becomes an ordinary login for whoever demos the app.
+- [ ] Remove `DEMO_BOSS_EMAIL` and `DEMO_BOSS_PASSWORD` from Vercel and Lovable (and your `.env`, once you no longer need them for testing). That account becomes an ordinary login for whoever demos the app.
+- [ ] Try it in a real browser:
+  1. Open the site signed out: you land on the login page.
+  2. Sign in with the demo account.
+  3. Sign out from the office header menu, then from worker app → Settings.
 
 **Before D1 (the switch to the new database)**
 
@@ -131,25 +171,20 @@ One finding is deferred to C/D1 (see [Known limitations](#known-limitations)).
 
 ## Next steps
 
-1. **B: real login** (on the demo database)
-   - Remove the automatic demo sign-in.
-   - Add a login page, sign-out in both apps, and a guard that sends signed-out visitors to `/login`.
-   - Make the photo, report, AI and address-lookup functions require a session.
-   - Never cache signed-in pages.
-2. **C: new schema**
+1. **C: new schema**
    - Supabase CLI and local database.
    - One clean baseline migration.
    - Automated security tests proving company A can't see company B's data and workers can't do boss things.
    - CI.
    - No app changes; the old migrations are kept as `supabase/legacy-demo/`.
-3. **D1: switch to the new project**
+2. **D1: switch to the new project**
    - Signup and a company-setup step.
    - Boss vs worker roles.
    - Everything scoped to the company.
    - Photos stored per company.
    - The worker app uses the signed-in worker instead of a picker.
-4. **D2: worker invites and password reset.**
-5. **E: end-to-end tests and final docs.**
+3. **D2: worker invites and password reset.**
+4. **E: end-to-end tests and final docs.**
 
 The full technical plan (schema, access rules, file-by-file changes, risks) is in
 [technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
@@ -161,4 +196,5 @@ The full technical plan (schema, access rules, file-by-file changes, risks) is i
   - Now: harmless at demo size.
   - Fix, planned for C/D1: a database function that calculates the counts server-side.
 - **Hours follow the current task:** client hours use each task's current duration and site. Editing a task changes hours already counted this month.
+- **Until D1, a signed-in account can see everything.** Login is real, but there are no roles or company scoping yet. The client report and photo functions check that you're signed in, not which company you belong to. That's safe only while the demo database holds a single company.
 - **Tasks double as weekly templates:** a task is a repeating weekly template, but its done/approved status is stored on the template itself. That needs per-date task occurrences, which is the next data-model change after this migration.

@@ -48,7 +48,6 @@ No `bun` installed? `npx bun@1.4.2 <command>` works the same.
 | --- | --- |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | public, needed at build time |
 | `SUPABASE_SERVICE_ROLE_KEY` | server only — photo storage, signed URLs |
-| `DEMO_BOSS_EMAIL`, `DEMO_BOSS_PASSWORD` | the Supabase user the app auto-signs-in as (`src/lib/api/session.ts`). Any auth user works — the RLS policy (migration 0002) gives every signed-in user full access. Get the shared demo login from the team, or create your own user in Supabase → Authentication.  |
 | `OPENAI_API_KEY` | plan explanation + drafted offers (`OPENAI_MODEL` optional, default `gpt-4o`) |
 
 ## What was built
@@ -256,7 +255,6 @@ optional and makes a task a **one-off** on that calendar date instead. Both kind
   old counter columns. Hours are the durations of jobs proven with a photo this month, counted
   once per job per day.
 - **The report reads through the service-role client** with a `clientId` straight off the URL, so
-  it bypasses RLS. Fine while every session signs in as the same demo boss; `signPhotoUrls` is a
+  it bypasses RLS. The caller must be signed in (since the real-login change); `signPhotoUrls` is a
   separate function so the data queries can move to `getAuthedClient()` when real tenancy lands.
-- **Lint:** `bun run lint` is red on pre-existing formatting in the shadcn `ui/` components. Every file touched
-  here is lint-clean.
+- **Login:** there is a real login page now, and no automatic sign-in. See `docs/production/`.

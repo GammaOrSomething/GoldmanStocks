@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
+import { getAuthedClient } from "./session";
+
 /**
  * Address search for placing work sites, via OpenStreetMap's Nominatim (free, no key). Called
  * from the server with an identifying User-Agent, as its usage policy asks; searches are only
@@ -54,6 +56,8 @@ function toPlace(p: NominatimPlace): Place {
 }
 
 async function nominatim(path: string, params: Record<string, string>) {
+  // Signed-in callers only: keeps this from being an open proxy to Nominatim under our name.
+  await getAuthedClient();
   const url = `${NOMINATIM}${path}?${new URLSearchParams({ format: "jsonv2", addressdetails: "1", ...params })}`;
   const res = await fetch(url, {
     headers: HEADERS,

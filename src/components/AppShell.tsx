@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 // Bundled with the app so it loads on any host (Lovable, Vercel, local dev).
 import logoUrl from "@/assets/goldman-stocks-logo.png";
+import { UserMenu } from "@/components/UserMenu";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -115,7 +116,10 @@ export function AppShell({
                 <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
               ) : null}
             </div>
-            {actions}
+            <div className="flex items-center gap-2">
+              {actions}
+              <UserMenu />
+            </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto px-4 pb-3 md:hidden print:hidden">
             {nav.map(({ to, label }) => {

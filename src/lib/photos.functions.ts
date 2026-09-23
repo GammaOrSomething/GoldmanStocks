@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getAuthedClient } from "@/lib/api/session";
 
 import {
   completeTask as completeTaskImpl,
@@ -28,6 +29,7 @@ import {
 export const createPhotoUploadUrl = createServerFn({ method: "POST" })
   .validator((input: PhotoUploadInput) => PhotoUploadInput.parse(input))
   .handler(async ({ data }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     const upload = await createPhotoUploadUrlImpl(getAdminClient(), data);
     return { ...upload, bucket: PHOTO_BUCKET };
@@ -37,6 +39,7 @@ export const createPhotoUploadUrl = createServerFn({ method: "POST" })
 export const completeTask = createServerFn({ method: "POST" })
   .validator((input: CompleteTaskInput) => CompleteTaskInput.parse(input))
   .handler(async ({ data }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     return completeTaskImpl(getAdminClient(), data);
   });

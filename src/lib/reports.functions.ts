@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getAuthedClient } from "@/lib/api/session";
 
 import {
   ClientReportInput,
@@ -16,6 +17,7 @@ import {
 export const clientReport = createServerFn({ method: "GET" })
   .validator((input: ClientReportInput) => ClientReportInput.parse(input))
   .handler(async ({ data }) => {
+    await getAuthedClient(); // signed-in callers only
     const { getAdminClient } = await import("@/lib/supabase/server");
     return clientReportImpl(getAdminClient(), data);
   });

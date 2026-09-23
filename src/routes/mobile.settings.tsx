@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Camera, Languages, MapPin, User } from "lucide-react";
+import { Bell, Camera, Languages, LogOut, MapPin, User } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useRefreshData, useWorkers } from "@/hooks/use-data";
+import { useSignOut } from "@/hooks/use-sign-out";
+import { useViewer } from "@/hooks/use-viewer";
 import { saveWorker } from "@/lib/api/workers";
 import { setPref, usePref } from "@/lib/phone-prefs";
 import {
@@ -22,13 +24,13 @@ export const Route = createFileRoute("/mobile/settings")({
       {
         name: "description",
         content:
-          "Who is using this phone, app language and photo & location options.",
+          "Your account, whose jobs to show, app language and photo & location options.",
       },
       { property: "og:title", content: "Settings — Goldman Stocks worker app" },
       {
         property: "og:description",
         content:
-          "Who is using this phone, app language and photo & location options.",
+          "Your account, whose jobs to show, app language and photo & location options.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -56,6 +58,8 @@ function MobileSettings() {
   const mySites = useWorkerProjects(workerId);
   const refresh = useRefreshData();
   const geoTag = usePref("geotag");
+  const viewer = useViewer();
+  const { signOut, pending: signingOut } = useSignOut();
   // The language a worker speaks lives on their record: the planner uses it to match them
   // with sites (Latvian speakers to Riga, …).
   const language = activeWorker?.language ?? "ET";
@@ -96,7 +100,7 @@ function MobileSettings() {
 
       <section className="space-y-4 rounded-lg border bg-card p-4 shadow-card">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <User className="size-4 text-primary" /> Who is using this phone?
+          <User className="size-4 text-primary" /> Whose jobs to show
         </h2>
         <div className="flex flex-wrap gap-2">
           {workers.map((w) => (
@@ -106,7 +110,7 @@ function MobileSettings() {
               variant="outline"
               onClick={() => {
                 setActiveWorker(w.id);
-                toast(`Signed in as ${w.name}`);
+                toast(`Showing ${w.name}'s jobs`);
               }}
               className={`h-10 rounded-lg px-3 ${
                 w.id === workerId
@@ -192,6 +196,23 @@ function MobileSettings() {
             aria-label="Morning job reminders (not available yet)"
           />
         </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border bg-card p-4 shadow-card">
+        <div>
+          <p className="text-xs text-muted-foreground">Signed in as</p>
+          <p className="truncate text-sm font-medium">{viewer?.email}</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full"
+          disabled={signingOut}
+          onClick={() => void signOut()}
+        >
+          <LogOut className="size-4" />
+          {signingOut ? "Signing out…" : "Sign out"}
+        </Button>
       </section>
 
       <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-muted-foreground">

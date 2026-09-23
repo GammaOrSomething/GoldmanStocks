@@ -21,8 +21,8 @@ import { PHOTO_BUCKET } from "./photos";
  * 2. `tasks.plant_id` is nullable, so `plantName` can be null; the task's zone (`tasks.site`)
  *    is what always locates the work.
  * 3. The report runs on the service-role client with a `clientId` straight off the URL, so it
- *    bypasses RLS. Acceptable while every session signs in as the same demo boss (see
- *    `src/lib/api/session.ts`), but it is the seam to cut when real tenancy arrives:
+ *    bypasses RLS. The caller must be signed in, and while there is one company in the database
+ *    that's enough, but it is the seam to cut when real tenancy arrives (docs/production/):
  *    `signPhotoUrls` is separate so the data queries can move to `getAuthedClient()` and only
  *    the signing stays on the admin client.
  */

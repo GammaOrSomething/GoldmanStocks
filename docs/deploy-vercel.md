@@ -17,8 +17,6 @@ unaffected and still target Cloudflare.
    | `VITE_SUPABASE_URL` | no | **needed at build time** — Vite inlines it into the browser bundle |
    | `VITE_SUPABASE_ANON_KEY` | no | **needed at build time**, same reason |
    | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | photo uploads/storage; never give it a `VITE_` prefix |
-   | `DEMO_BOSS_EMAIL` | yes | the account the app signs in as (see `src/lib/api/session.ts`) |
-   | `DEMO_BOSS_PASSWORD` | **yes** | |
    | `OPENAI_API_KEY` | **yes** | plan explanation and offer drafts |
    | `OPENAI_MODEL` | no | optional, defaults to `gpt-4o` |
 
