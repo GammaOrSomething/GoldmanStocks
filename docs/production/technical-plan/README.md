@@ -1,5 +1,17 @@
 # Goldman Stocks: from demo to production
 
+> **Changes made during implementation.** This is the plan as approved. Where the work ended up
+> differing, [the migration log](../README.md) has the details:
+>
+> - **B:** sign-in and sign-out run in the browser, not in a server function, so Supabase's
+>   per-IP rate limit applies to each user rather than to the server's single address. The
+>   redirect target is returned as a plain URL, and `safeRedirect` refuses control characters
+>   (the review found an open redirect via a tab).
+> - **C:** a `set_task_status` function was added for workers skipping or un-skipping their own
+>   jobs. `complete_task` is idempotent for a retried photo. The security tests are SQL
+>   (`supabase/tests/rls.sql`), runnable on a real local Supabase or, without Docker, on plain
+>   Postgres with a stand-in for Supabase's auth and storage schemas.
+
 ## Context
 
 The app is a hackathon demo. It has no login: every visitor is silently signed in, on the server, as one shared "demo boss" Supabase account (`src/lib/api/session.ts:23`). In the worker app, "who am I" is just a worker picked from a list and saved in the phone's browser (`src/lib/worker-store.ts`). The database lets any signed-in user read and write every row (`supabase/migrations/0002_authenticated_access.sql`). Three server functions use the service-role key with no auth check at all (photos, plant photos, client report). The data is seeded from a 700-line mock file (`src/lib/rootline-data.ts`), and several screens show fake numbers or static cards.

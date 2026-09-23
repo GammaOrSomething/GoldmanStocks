@@ -4,7 +4,7 @@ This is the running record of turning the hackathon demo into a real product: wh
 each change did, what you need to do by hand, and what comes next. It is updated with every PR.
 
 - **Started:** 23 Sep 2026
-- **Current step:** PR C, new database schema (B is done)
+- **Current step:** PR D1, switch the app to the new project (A1–C are done)
 
 ## Where we're going
 
@@ -35,7 +35,7 @@ signed-in user read and write every row. The data came from a 700-line mock file
 | A1   | Remove demo data and fake numbers                                 | Done        | `chore/remove-demo-data`                |
 | A2   | Remove dead code and template leftovers                           | Done        | `chore/remove-dead-code` (on top of A1) |
 | B    | Real login (still on the demo database)                           | Done        | `feat/real-login` (on top of A2)        |
-| C    | New database schema, Supabase CLI, security tests                 | Not started |                                         |
+| C    | New database schema, Supabase CLI, security tests                 | Done        | `feat/production-schema` (on top of B)  |
 | D1   | Switch the app to the new project: signup, roles, company scoping | Not started |                                         |
 | D2   | Worker invites and password reset                                 | Not started |                                         |
 | E    | End-to-end tests, CAPTCHA, final docs                             | Not started |                                         |
@@ -151,6 +151,55 @@ Also fixed:
   - `/login?redirect=//evil.com` goes to `/`.
 - Every response carries `Cache-Control: private, no-store`.
 
+### C: new database schema
+
+**Why:** the demo schema can't hold more than one company safely. It uses text ids like `c1` that would clash between companies, has no `company_id` on most tables, and gives every signed-in user full access. The production database is built fresh from a new baseline instead. Nothing in the app changes yet; D1 switches the app over.
+
+**What changed** (everything is under `supabase/`; [`supabase/README.md`](../../supabase/README.md) explains it in full):
+
+- **Four new migrations** in `supabase/migrations/`:
+  - **core:** types and tables;
+  - **functions:** triggers and the functions the app calls;
+  - **rls:** who can read and write what;
+  - **storage:** the photo bucket.
+- **The four demo migrations** moved to `supabase/legacy-demo/`, frozen, with a note.
+- **Every table carries its company:**
+  - `company_id` fills itself in from the signed-in user.
+  - Links between rows include the company, so a row can't point at another company's data even if someone guesses its id.
+- **Readable plant codes:** plants get `PL-0001`, `PL-0002`, … per company. Codes are handed out safely when two plants are added at once, and never change.
+- **Money is boss-only:** monthly values and contract dates moved to `client_terms` and `project_terms`, which only a boss can read.
+- **Crews:** a real `project_workers` table (site, worker, lead) replaces the list of ids stored on the site.
+- **Workers write through narrow database functions**, never directly: finish a task with a photo, skip or un-skip their own job, change their language. They can also register a plant at a site they work on. That keeps someone with a worker login from rewriting records through the API.
+- **Rules a policy can't express** are enforced by triggers:
+  - Only an invitation, run on the server, can link a login to a worker.
+  - A company always keeps at least one boss.
+- **Client numbers are calculated in the database** (`client_stats`), which fixes the 1,000-row limitation from A1 once D1 uses it.
+- **Photos:** one private bucket with a folder per company. Workers can only upload proof for their own tasks.
+- **Tooling:**
+  - The Supabase CLI is a dev dependency.
+  - `supabase/config.toml` holds local settings: email confirmation on, 10-character passwords with letters and digits, no seed.
+  - Email templates for confirm, invite and reset.
+  - New scripts: `db:start`, `db:reset`, `db:types`, `test:rls`, and `test`.
+  - CI (`.github/workflows/ci.yml`) runs the tests, lint and build, and the database security tests on a real local Supabase.
+
+**Two things were added that the plan didn't have:**
+
+- **`set_task_status`:** the worker app lets workers skip and un-skip their own jobs, so they need a narrow way to do it.
+- **Photo retries:** finishing a task with the same photo twice is now a harmless no-op. The tests caught a first version that added a second care-history entry.
+
+**Verified:**
+
+- **48 security checks pass** (`supabase/tests/rls.sql`). They cover:
+  - company B sees and changes nothing of company A's data, photos included;
+  - a worker can't see money or offers, can't change tasks, roles or clients directly, and can't upload or complete someone else's task;
+  - plant codes;
+  - signup rules;
+  - the last-boss rule;
+  - the weather cache;
+  - the functions above.
+- **Where they ran:** this machine has no Docker, so the checks ran on the local PostgreSQL 17 against a small stand-in for Supabase's `auth` and `storage` parts (`bun run test:rls -- --stub`). CI runs the same checks against a real local Supabase, but that job hasn't run yet, because the branch hasn't been pushed.
+- The app's 124 tests, lint and build still pass. The app still runs on the demo database.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -173,6 +222,8 @@ Also fixed:
 
 **Before D1 (the switch to the new database)**
 
+- [ ] Install Docker Desktop, or tell me to keep using the no-Docker test setup. D1 needs a local Supabase to try signup and the worker flow end to end, and to regenerate the database types.
+
 - [ ] Create the production Supabase project in `eu-west-2`, the same region as today.
 - [ ] Set up custom email sending (SMTP), e.g. Resend, Postmark or SES, with SPF/DKIM on your domain. **Required:** Supabase's built-in sender only emails your own team members, so signup confirmations and worker invites won't arrive without it.
 - [ ] Auth settings:
@@ -186,20 +237,14 @@ Also fixed:
 
 ## Next steps
 
-1. **C: new schema**
-   - Supabase CLI and local database.
-   - One clean baseline migration.
-   - Automated security tests proving company A can't see company B's data and workers can't do boss things.
-   - CI.
-   - No app changes; the old migrations are kept as `supabase/legacy-demo/`.
-2. **D1: switch to the new project**
+1. **D1: switch to the new project**
    - Signup and a company-setup step.
    - Boss vs worker roles.
    - Everything scoped to the company.
    - Photos stored per company.
    - The worker app uses the signed-in worker instead of a picker.
-3. **D2: worker invites and password reset.**
-4. **E: end-to-end tests and final docs.**
+2. **D2: worker invites and password reset.**
+3. **E: end-to-end tests and final docs.**
 
 The full technical plan (schema, access rules, file-by-file changes, risks) is in
 [technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
@@ -209,7 +254,7 @@ The full technical plan (schema, access rules, file-by-file changes, risks) is i
 - **Row limit on client counts:**
   - The problem: client counts are calculated in the app from full table reads, and Supabase returns at most 1,000 rows per query. Past 1,000 plants or monthly proof photos, the counts would silently come out low.
   - Now: harmless at demo size.
-  - Fix, planned for C/D1: a database function that calculates the counts server-side.
+  - Fix: the `client_stats` database function (added in C). The app switches to it in D1.
 - **Hours follow the current task:** client hours use each task's current duration and site. Editing a task changes hours already counted this month.
 - **Until D1, a signed-in account can see everything.** Login is real, but there are no roles or company scoping yet. The client report and photo functions check that you're signed in, not which company you belong to. That's safe only while the demo database holds a single company.
 - **Tasks double as weekly templates:** a task is a repeating weekly template, but its done/approved status is stored on the template itself. That needs per-date task occurrences, which is the next data-model change after this migration.

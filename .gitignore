@@ -18,3 +18,7 @@ dist
 # OS / editor
 .DS_Store
 *.log
+
+# Supabase CLI local state
+supabase/.branches
+supabase/.temp
