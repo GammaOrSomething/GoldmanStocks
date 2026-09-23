@@ -8,17 +8,17 @@ each change did, what you need to do by hand, and what comes next. It is updated
 
 ## ▶ Pick up here (next session)
 
-_Updated in the second 23 Sep 2026 session._
+_Updated at the end of the second 23 Sep 2026 session._
 
 **Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
 
-| Branch                   | Contains      | State                                                                |
-| ------------------------ | ------------- | -------------------------------------------------------------------- |
-| `chore/remove-demo-data` | A1            | done                                                                 |
-| `chore/remove-dead-code` | A2 + this doc | done                                                                 |
-| `feat/real-login`        | B             | done, reviewed, fixes in                                             |
-| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass |
-| `feat/cut-over`          | D1, started   | **in progress**: data layer done; typecheck and unit tests pass      |
+| Branch                   | Contains      | State                                                                     |
+| ------------------------ | ------------- | ------------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                      |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                      |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                                  |
+| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass      |
+| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles and signup pages done; all checks pass |
 
 **To resume D1** (`git checkout feat/cut-over`):
 
@@ -34,34 +34,36 @@ _Updated in the second 23 Sep 2026 session._
      - skipping or reopening a task goes through `set_task_status`;
      - lists are ordered by name, code or date;
      - a malformed id reads as "not found".
-   - Fixtures carry the new fields. 141 unit tests pass, and the typecheck is clean.
+   - Fixtures carry the new fields.
+   - **Session and roles:**
+     - the viewer carries the company and role (`Viewer.member`, null until onboarding);
+     - `requireBoss()` guards office writes, offers, the AI, address search and the report;
+     - the AI calls spend the daily allowance (`src/lib/api/usage.ts`);
+     - `access.ts` sends a person without a company to `/onboarding`, keeps a worker in `/mobile`, and lets anyone open `/signup`, with tests.
+   - **New pages:** `/signup`, `/onboarding` (calls `create_company`) and `/auth/confirm`, which verifies only when the button is pressed. They share `src/components/AuthCard.tsx`.
+   - 153 unit tests, typecheck, lint and build pass.
 2. **Next, in this order:**
-   1. **Session and roles:**
-      - `getSessionViewer` in `src/lib/api/session.ts` also returns `workerId`, `companyId`, `companyName`, `role` and `name`.
-      - Add a boss-only check for office writes, offers, the AI, geocoding and the report.
-      - `access.ts` gains three rules: no company → `/onboarding`; a worker on an office page → `/mobile`; `/signup` is public. Tests first.
-   2. **New pages:** `/signup`, `/onboarding` (calls `create_company`), and `/auth/confirm` (a button that calls `verifyOtp`, then goes to the checked `next`).
-   3. **Photos:**
+   1. **Photos:**
       - `src/lib/server/photos.ts`: paths become `<company>/tasks/<task>/…`, and completion calls the `complete_task` function.
       - `plant-photos.ts`: `<company>/plants/<uuid>`, saved as `plants.photo_path`; delete `attachPlantPhoto`.
       - Switch the photo, plant and report functions from the admin key to the user's own session.
       - The weather cache uses the admin client.
-      - `bump_usage` limits the AI calls.
-   4. **Worker app:**
+   2. **Worker app:**
       - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
       - Remove the "whose jobs to show" picker.
       - Language changes go through `update_my_profile` (the server function `updateMyLanguage` exists).
       - Only bosses see "Full site".
-   5. **Office:**
+   3. **Office:**
       - Remove "Open in worker app" from `/workers`, and show the email and login status.
       - Show `plant.code` instead of the id in `PlantTable`, `LeafletMap` and `PlantDialog`.
       - A bad id in a URL shows "not found" (the server side already returns null).
-   6. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
+   4. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
 3. **Also still to do:**
    - **Remove access (D2):** it must clear `workers.user_id`, not just archive the worker.
    - **Weekly tasks keep their status from week to week.** Once a weekly task is proven, it shows as done in every later week. The app did this before too. The database now limits proof to one per week, so a per-week status is the natural follow-up; decide it in D1's worker-app step.
    - **Check on real Supabase (CI):** that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`; set `secure_password_change = true` in `config.toml`.
-   - **`bump_usage` needs the user's session.** With the service role it refuses, because there is no company, so call it from `plan.functions.ts` / `outreach.functions.ts` with the user's client.
+   - **Invite and reset links** point to `/auth/set-password`, which D2 adds. Until then they end on a missing page.
+   - **Office screens don't hide boss-only buttons from workers yet.** Workers are redirected to `/mobile` anyway, and the server refuses them.
 4. **Then:** review, update this log, and commit. D2 (invites and password reset) and E follow; see [Next steps](#next-steps).
 
 **Checks to run:**
