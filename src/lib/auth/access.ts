@@ -27,14 +27,20 @@ export type Viewer = {
 
 const LOGIN = "/login";
 const SIGNUP = "/signup";
+const FORGOT_PASSWORD = "/forgot-password";
 const ONBOARDING = "/onboarding";
 const WORKER_APP = "/mobile";
 
-/** Pages anyone may open: login, signup and the email-link callbacks under /auth/. */
+/** The pages for getting in: a signed-in member is sent on from them. */
+const isEntryPage = (pathname: string) =>
+  pathname === LOGIN || pathname === SIGNUP || pathname === FORGOT_PASSWORD;
+
+/**
+ * Pages anyone may open: login, signup, asking for a password reset, and the email-link
+ * callbacks under /auth/ (confirming, then choosing a password).
+ */
 export function isPublicPath(pathname: string): boolean {
-  return (
-    pathname === LOGIN || pathname === SIGNUP || pathname.startsWith("/auth/")
-  );
+  return isEntryPage(pathname) || pathname.startsWith("/auth/");
 }
 
 const isWorkerPage = (pathname: string) =>
@@ -48,7 +54,7 @@ export function homeFor(member: Member): string {
 /**
  * A `?redirect=` target that is safe to follow: a path on this site. Anything that could point
  * elsewhere (`//host`, `/\host`, `https://…`, `javascript:…`) falls back to the home page, as
- * does the login page itself so a signed-in user can't loop.
+ * do the login, signup and reset pages themselves, so a signed-in user can't loop.
  *
  * Control characters and spaces are refused outright: browsers delete tabs and newlines from
  * URLs, so `/<tab>/evil.com` in a Location header becomes `//evil.com`, another site.
@@ -61,7 +67,7 @@ export function safeRedirect(target: unknown, fallback = "/"): string {
   const base = "http://same-site.invalid";
   const url = new URL(target, base);
   if (url.origin !== base) return fallback;
-  if (url.pathname === LOGIN || url.pathname === SIGNUP) return fallback;
+  if (isEntryPage(url.pathname)) return fallback;
   return target;
 }
 
@@ -89,7 +95,7 @@ export function resolveAccess(
   if (!member) return pathname === ONBOARDING ? null : ONBOARDING;
 
   const home = homeFor(member);
-  if (pathname === LOGIN || pathname === SIGNUP) {
+  if (isEntryPage(pathname)) {
     const next = safeRedirect(
       new URLSearchParams(searchStr).get("redirect"),
       home,

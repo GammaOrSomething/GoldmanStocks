@@ -5,7 +5,13 @@ import {
 
 import { supabase } from "@/lib/supabase/client";
 
-import { OFFLINE, signInErrorMessage, signUpErrorMessage } from "./errors";
+import {
+  OFFLINE,
+  resetPasswordErrorMessage,
+  setPasswordErrorMessage,
+  signInErrorMessage,
+  signUpErrorMessage,
+} from "./errors";
 
 /**
  * Sign-in and sign-out run in the browser, not in a server function.
@@ -64,6 +70,25 @@ export async function verifyEmailLink(
   throw new Error(
     "This link has expired or was already used. Ask for a new one.",
   );
+}
+
+/**
+ * Email a password-reset link (supabase/templates/recovery.html builds it: /auth/confirm, then
+ * /auth/set-password). Resolves the same whether or not the email has an account.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  const message = error ? resetPasswordErrorMessage(error) : null;
+  if (message) throw new Error(message);
+}
+
+/**
+ * Choose a password, on the session an invite or reset link just started. With secure password
+ * change on, Supabase allows this only on a fresh session, which the link gives.
+ */
+export async function setPassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(setPasswordErrorMessage(error));
 }
 
 export async function signOut(): Promise<void> {

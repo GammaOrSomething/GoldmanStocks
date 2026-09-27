@@ -202,3 +202,21 @@ describe("resolveAccess: bosses and workers", () => {
     expect(resolveAccess(at("/login"), worker)).toBe("/mobile");
   });
 });
+
+describe("resolveAccess: password reset", () => {
+  test("forgot-password is public, and never a place to be sent back to", () => {
+    expect(isPublicPath("/forgot-password")).toBe(true);
+    expect(resolveAccess(at("/forgot-password"), null)).toBeNull();
+    expect(safeRedirect("/forgot-password")).toBe("/");
+  });
+
+  test("signed in on forgot-password: on home, like the login page", () => {
+    expect(resolveAccess(at("/forgot-password"), viewer)).toBe("/");
+    expect(resolveAccess(at("/forgot-password"), worker)).toBe("/mobile");
+  });
+
+  test("set-password opens for anyone; the page itself explains an expired link", () => {
+    for (const who of [null, newcomer, viewer, worker])
+      expect(resolveAccess(at("/auth/set-password"), who)).toBeNull();
+  });
+});

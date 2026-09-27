@@ -6,6 +6,7 @@ import { AuthCard, FormError } from "@/components/AuthCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MIN_PASSWORD } from "@/lib/auth/errors";
 import { signUp } from "@/lib/auth/session-client";
 
 export const Route = createFileRoute("/signup")({
@@ -17,8 +18,6 @@ export const Route = createFileRoute("/signup")({
   }),
   component: Signup,
 });
-
-const MIN_PASSWORD = 10;
 
 function Signup() {
   const router = useRouter();

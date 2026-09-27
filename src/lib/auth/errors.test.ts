@@ -1,8 +1,18 @@
 /// <reference types="bun" />
-import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  AuthApiError,
+  AuthRetryableFetchError,
+  AuthSessionMissingError,
+} from "@supabase/supabase-js";
 import { describe, expect, test } from "bun:test";
 
-import { OFFLINE, signInErrorMessage, signUpErrorMessage } from "./errors";
+import {
+  OFFLINE,
+  resetPasswordErrorMessage,
+  setPasswordErrorMessage,
+  signInErrorMessage,
+  signUpErrorMessage,
+} from "./errors";
 
 const api = (status: number, code: string) =>
   new AuthApiError("refused", status, code);
@@ -54,6 +64,53 @@ describe("signInErrorMessage", () => {
     );
     expect(signInErrorMessage(new AuthRetryableFetchError("offline", 0))).toBe(
       OFFLINE,
+    );
+  });
+});
+
+describe("resetPasswordErrorMessage", () => {
+  test("only an outage or a rate limit is worth saying", () => {
+    expect(
+      resetPasswordErrorMessage(new AuthRetryableFetchError("offline", 0)),
+    ).toBe(OFFLINE);
+    expect(
+      resetPasswordErrorMessage(api(429, "over_email_send_rate_limit")),
+    ).toMatch(/Too many attempts/);
+  });
+
+  test("anything else reads as sent, so no one learns which emails have accounts", () => {
+    expect(resetPasswordErrorMessage(api(400, "user_not_found"))).toBeNull();
+    expect(
+      resetPasswordErrorMessage(api(500, "unexpected_failure")),
+    ).toBeNull();
+  });
+});
+
+describe("setPasswordErrorMessage", () => {
+  test("explains what the person can fix", () => {
+    expect(setPasswordErrorMessage(api(422, "weak_password"))).toMatch(
+      /at least 10 characters/,
+    );
+    expect(setPasswordErrorMessage(api(422, "same_password"))).toMatch(
+      /different/,
+    );
+  });
+
+  test("a stale or missing session means the link has to be requested again", () => {
+    expect(
+      setPasswordErrorMessage(api(400, "reauthentication_needed")),
+    ).toMatch(/expired/);
+    expect(setPasswordErrorMessage(new AuthSessionMissingError())).toMatch(
+      /expired/,
+    );
+  });
+
+  test("passes on outages and never echoes the server", () => {
+    expect(
+      setPasswordErrorMessage(new AuthRetryableFetchError("offline", 0)),
+    ).toBe(OFFLINE);
+    expect(setPasswordErrorMessage(api(500, "unexpected_failure"))).not.toMatch(
+      /refused/,
     );
   });
 });

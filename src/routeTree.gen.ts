@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MobileRouteImport } from './routes/mobile'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -20,6 +21,7 @@ import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WorkersRouteImport } from './routes/workers'
 import { Route as AuthConfirmRouteImport } from './routes/auth.confirm'
+import { Route as AuthSetPasswordRouteImport } from './routes/auth.set-password'
 import { Route as MobileIndexRouteImport } from './routes/mobile.index'
 import { Route as MobileLocationsRouteImport } from './routes/mobile.locations'
 import { Route as MobileNewPlantRouteImport } from './routes/mobile.new-plant'
@@ -36,6 +38,11 @@ const IndexRoute = IndexRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -83,6 +90,11 @@ const AuthConfirmRoute = AuthConfirmRouteImport.update({
   path: '/auth/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSetPasswordRoute = AuthSetPasswordRouteImport.update({
+  id: '/auth/set-password',
+  path: '/auth/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MobileIndexRoute = MobileIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -122,6 +134,7 @@ const ClientsClientIdReportRoute = ClientsClientIdReportRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
   '/onboarding': typeof OnboardingRoute
@@ -131,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
   '/auth/confirm': typeof AuthConfirmRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -142,6 +156,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/plants': typeof PlantsRoute
@@ -150,6 +165,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
   '/auth/confirm': typeof AuthConfirmRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -162,6 +178,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/mobile': typeof MobileRouteWithChildren
   '/onboarding': typeof OnboardingRoute
@@ -171,6 +188,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/workers': typeof WorkersRoute
   '/auth/confirm': typeof AuthConfirmRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/mobile/locations': typeof MobileLocationsRoute
   '/mobile/new-plant': typeof MobileNewPlantRoute
   '/mobile/plants': typeof MobilePlantsRoute
@@ -184,6 +202,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/clients'
+    | '/forgot-password'
     | '/login'
     | '/mobile'
     | '/onboarding'
@@ -193,6 +212,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/workers'
     | '/auth/confirm'
+    | '/auth/set-password'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -204,6 +224,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/clients'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/plants'
@@ -212,6 +233,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/workers'
     | '/auth/confirm'
+    | '/auth/set-password'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -223,6 +245,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/clients'
+    | '/forgot-password'
     | '/login'
     | '/mobile'
     | '/onboarding'
@@ -232,6 +255,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/workers'
     | '/auth/confirm'
+    | '/auth/set-password'
     | '/mobile/locations'
     | '/mobile/new-plant'
     | '/mobile/plants'
@@ -244,6 +268,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientsRoute: typeof ClientsRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MobileRoute: typeof MobileRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
@@ -253,6 +278,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   WorkersRoute: typeof WorkersRoute
   AuthConfirmRoute: typeof AuthConfirmRoute
+  AuthSetPasswordRoute: typeof AuthSetPasswordRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ClientsClientIdReportRoute: typeof ClientsClientIdReportRoute
 }
@@ -271,6 +297,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -334,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/confirm'
       fullPath: '/auth/confirm'
       preLoaderRoute: typeof AuthConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/set-password': {
+      id: '/auth/set-password'
+      path: '/auth/set-password'
+      fullPath: '/auth/set-password'
+      preLoaderRoute: typeof AuthSetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mobile/': {
@@ -410,6 +450,7 @@ const MobileRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MobileRoute: MobileRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
@@ -419,6 +460,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   WorkersRoute: WorkersRoute,
   AuthConfirmRoute: AuthConfirmRoute,
+  AuthSetPasswordRoute: AuthSetPasswordRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ClientsClientIdReportRoute: ClientsClientIdReportRoute,
 }

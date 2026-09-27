@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { safeRedirect } from "@/lib/auth/access";
 import { verifyEmailLink } from "@/lib/auth/session-client";
 
-// Where the emailed links land (supabase/templates/): confirming a new account now; accepting
-// an invitation and resetting a password in D2.
+// Where the emailed links land (supabase/templates/): confirming a new account, accepting an
+// invitation, and resetting a password. The last two go on to /auth/set-password.
 const LINK_TYPES = ["email", "signup", "invite", "recovery", "email_change"];
 
 type ConfirmSearch = { token_hash?: string; type?: EmailOtpType; next: string };
