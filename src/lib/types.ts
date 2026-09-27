@@ -78,6 +78,8 @@ export type Worker = {
   hasLogin: boolean;
   /** ISO timestamp of the last invitation email */
   invitedAt?: string;
+  /** when their login was confirmed (the invitation accepted); only a boss sees this */
+  joinedAt?: string;
 };
 
 export type Task = {

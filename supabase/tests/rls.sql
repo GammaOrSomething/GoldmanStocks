@@ -592,6 +592,50 @@ select tests.throws(
   '22023', 'bump_usage refuses a kind it has no limit for'
 );
 
+-- ─── Invitations: who has joined, and the invite allowance ───────────────────
+-- Opening the invite link confirms the email; Walter hasn't yet, Anna has.
+
+reset role;
+update auth.users set email_confirmed_at = now() where id = tests.id('anna');
+select tests.login(tests.id('anna'));
+set local role authenticated;
+select tests.ok(
+  (select count(*) = 2 from public.worker_logins())
+  and (select confirmed_at is not null from public.worker_logins()
+       where worker_id = tests.id('anna_row'))
+  and (select confirmed_at is null from public.worker_logins()
+       where worker_id = tests.id('worker_row_a')),
+  'a boss sees which of the company''s logins have been confirmed'
+);
+select tests.ok(public.bump_usage('invite'), 'a boss can spend the invite allowance');
+
+reset role;
+select tests.login(tests.id('bella'));
+set local role authenticated;
+select tests.ok(
+  not exists (
+    select 1 from public.worker_logins()
+    where worker_id in (tests.id('anna_row'), tests.id('worker_row_a'))
+  ),
+  'another company''s boss sees none of its logins'
+);
+
+reset role;
+select tests.login(tests.id('walter'));
+set local role authenticated;
+select tests.ok(
+  not exists (select 1 from public.worker_logins()),
+  'a worker sees nobody''s login state'
+);
+select tests.throws(
+  $$select public.bump_usage('invite')$$,
+  '42501', 'a worker cannot spend the invite allowance'
+);
+
+reset role;
+select tests.login(tests.id('anna'));
+set local role authenticated;
+
 select tests.ok((select count(*) = 2 from public.task_photos), 'the boss sees the company''s photo proof');
 select tests.ok(
   (select count(*) = 5 from storage.objects where bucket_id = 'task-photos'),

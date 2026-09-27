@@ -22,9 +22,10 @@ create schema auth;
 grant usage on schema auth to anon, authenticated, service_role;
 
 create table auth.users (
-  id         uuid primary key,
-  email      text,
-  created_at timestamptz not null default now()
+  id                 uuid primary key,
+  email              text,
+  email_confirmed_at timestamptz,
+  created_at         timestamptz not null default now()
 );
 
 -- As in Supabase: the caller's claims come from the request's JWT, which PostgREST exposes

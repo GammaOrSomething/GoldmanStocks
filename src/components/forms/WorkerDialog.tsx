@@ -70,6 +70,7 @@ function WorkerForm({
   const [form, setForm] = useState<WorkerInput>({
     ...(worker ? { id: worker.id } : {}),
     name: worker?.name ?? "",
+    email: worker?.email ?? "",
     role: worker?.role ?? "Gardener",
     language: (worker?.language as WorkerInput["language"]) ?? "ET",
   });
@@ -113,6 +114,23 @@ function WorkerForm({
           onChange={(e) => set("name", e.target.value)}
           placeholder="e.g. Karl Saar"
         />
+      </Field>
+      <Field label="Email">
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="off"
+          value={form.email ?? ""}
+          onChange={(e) => set("email", e.target.value)}
+          readOnly={worker?.hasLogin}
+          aria-describedby="worker-email-hint"
+          placeholder="for their invitation to the app"
+        />
+        <p id="worker-email-hint" className="text-xs text-muted-foreground">
+          {worker?.hasLogin
+            ? "Their email is their login, so it can't be changed here."
+            : "Optional. You can invite them to the app once it's set."}
+        </p>
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Role">

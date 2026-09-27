@@ -478,7 +478,7 @@ export type Database = {
         Returns: undefined;
       };
       bump_usage: {
-        Args: { p_kind: "ai_plan" | "ai_outreach" };
+        Args: { p_kind: "ai_plan" | "ai_outreach" | "invite" };
         Returns: boolean;
       };
       client_stats: {
@@ -489,6 +489,10 @@ export type Database = {
           plants: number;
           hours: number;
         }[];
+      };
+      worker_logins: {
+        Args: Record<PropertyKey, never>;
+        Returns: { worker_id: string; confirmed_at: string | null }[];
       };
     };
     Enums: {
