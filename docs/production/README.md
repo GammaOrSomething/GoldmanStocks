@@ -4,67 +4,37 @@ This is the running record of turning the hackathon demo into a real product: wh
 each change did, what you need to do by hand, and what comes next. It is updated with every PR.
 
 - **Started:** 23 Sep 2026
-- **Current step:** PR D1, switch the app to the new project (A1–C are done). **Start at [Pick up here](#-pick-up-here-next-session).**
+- **Current step:** PR D2, worker invites and password reset (A1–D1 are done). **Start at [Pick up here](#-pick-up-here-next-session).**
 
 ## ▶ Pick up here (next session)
 
-_Updated during the third 23 Sep 2026 session._
+_Updated 27 Sep 2026._
 
 **Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
 
-| Branch                   | Contains      | State                                                                                           |
-| ------------------------ | ------------- | ----------------------------------------------------------------------------------------------- |
-| `chore/remove-demo-data` | A1            | done                                                                                            |
-| `chore/remove-dead-code` | A2 + this doc | done                                                                                            |
-| `feat/real-login`        | B             | done, reviewed, fixes in                                                                        |
-| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass                            |
-| `feat/cut-over`          | D1, started   | **in progress**: data layer, roles, signup pages and photos done, and reviewed; all checks pass |
+| Branch                   | Contains      | State                                                                |
+| ------------------------ | ------------- | -------------------------------------------------------------------- |
+| `chore/remove-demo-data` | A1            | done                                                                 |
+| `chore/remove-dead-code` | A2 + this doc | done                                                                 |
+| `feat/real-login`        | B             | done, reviewed, fixes in                                             |
+| `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass |
+| `feat/cut-over`          | D1            | **done**, reviewed; all checks pass                                  |
 
-**To resume D1** (`git checkout feat/cut-over`):
+**To start D2** (`git checkout feat/cut-over && git checkout -b feat/worker-invites`):
 
-1. **Done in D1 so far:**
-   - `src/lib/supabase/types.ts`, hand-written for the new schema, since generating it needs Docker.
-   - `src/lib/types.ts`: `Plant.code`, and `Worker.email` / `appRole` / `hasLogin` / `invitedAt`.
-   - `src/lib/api/mappers.ts`, with tests.
-   - **The data layer** (`src/lib/api/{clients,workers,projects,plants,tasks}.ts`):
-     - client numbers come from `client_stats`;
-     - crews come from `project_workers`, and money from the terms tables;
-     - the database makes ids and plant codes, so `ids.ts` is gone;
-     - task validation and row mapping live in `task-rows.ts`, with tests;
-     - skipping or reopening a task goes through `set_task_status`;
-     - lists are ordered by name, code or date;
-     - a malformed id reads as "not found".
-   - Fixtures carry the new fields.
-   - **Session and roles:**
-     - the viewer carries the company and role (`Viewer.member`, null until onboarding);
-     - `requireBoss()` guards office writes, offers, the AI, address search and the report;
-     - the AI calls spend the daily allowance (`src/lib/api/usage.ts`);
-     - `access.ts` sends a person without a company to `/onboarding`, keeps a worker in `/mobile`, and lets anyone open `/signup`, with tests.
-   - **New pages:** `/signup`, `/onboarding` (calls `create_company`) and `/auth/confirm`, which verifies only when the button is pressed. They share `src/components/AuthCard.tsx`.
-   - **Photos** (see [Photos, in D1](#photos-in-d1)):
-     - task proof goes to `<company>/tasks/<task>/…` and is recorded by one `complete_task` call;
-     - a plant's picture goes to `<company>/plants/<uuid>` and is saved as `plants.photo_path` in the same insert as the plant (`attachPlantPhoto` is gone);
-     - the photo, plant-photo and report functions run on the user's own session; only the weather cache still uses the admin key.
-   - **Reviewed** for security and bugs (see [Review of D1 so far](#review-of-d1-so-far)); the fixes are in.
-   - 182 unit tests, typecheck, lint and build pass, and the 86 database checks.
-2. **Next, in this order:**
-   1. **Worker app:**
-      - Replace `src/lib/worker-store.ts` with the signed-in worker (`src/hooks/use-viewer.ts`).
-      - Remove the "whose jobs to show" picker.
-      - Language changes go through `update_my_profile` (the server function `updateMyLanguage` exists).
-      - Only bosses see "Full site".
-   2. **Office:**
-      - Remove "Open in worker app" from `/workers`, and show the email and login status.
-      - Show `plant.code` instead of the id in `PlantTable`, `LeafletMap` and `PlantDialog`.
-      - A bad id in a URL shows "not found" (the server side already returns null).
-   3. **Docs:** `.env.example` and `docs/deploy-vercel.md`. Keep the variable names; they now hold the new project's keys.
-3. **Also still to do:**
-   - **Remove access (D2):** it must clear `workers.user_id`, not just archive the worker.
-   - **Weekly tasks keep their status from week to week.** Once a weekly task is proven, it shows as done in every later week. The app did this before too. The database now limits proof to one per week, so a per-week status is the natural follow-up; decide it in D1's worker-app step.
+1. **The plan:** [PR D2](technical-plan/README.md#pr-d2-worker-invites-and-password-reset). In short:
+   - invite, resend and remove access on `/workers`, through a new server-only `src/lib/server/invites.ts`;
+   - an email field in `WorkerDialog`;
+   - `/auth/set-password` and `/forgot-password`, with `/auth/confirm` handling invite and recovery links.
+2. **Carried into D2:**
+   - **Remove access** must clear `workers.user_id`, not just archive the worker.
+   - **Invite and reset links** point to `/auth/set-password`. Until D2 adds it, they end on a missing page.
+   - `/workers` already shows each worker's email and "Can sign in" / "Invited <date>" / "No login"; D2 adds the buttons next to it.
+3. **Still open, for E or later:**
    - **Check on real Supabase (CI):** that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`; set `secure_password_change = true` in `config.toml`.
-   - **Invite and reset links** point to `/auth/set-password`, which D2 adds. Until then they end on a missing page.
    - **Office screens don't hide boss-only buttons from workers yet.** Workers are redirected to `/mobile` anyway, and the server refuses them.
-4. **Then:** review, update this log, and commit. D2 (invites and password reset) and E follow; see [Next steps](#next-steps).
+   - **"Skipped" carries over from week to week** on weekly tasks (see [D1: worker app, office and docs](#d1-worker-app-office-and-docs)).
+4. **Then:** review, update this log, and commit. E follows; see [Next steps](#next-steps).
 
 **Checks to run:**
 
@@ -114,7 +84,7 @@ signed-in user read and write every row. The data came from a 700-line mock file
 | A2   | Remove dead code and template leftovers                           | Done        | `chore/remove-dead-code` (on top of A1) |
 | B    | Real login (still on the demo database)                           | Done        | `feat/real-login` (on top of A2)        |
 | C    | New database schema, Supabase CLI, security tests                 | Done        | `feat/production-schema` (on top of B)  |
-| D1   | Switch the app to the new project: signup, roles, company scoping | In progress |                                         |
+| D1   | Switch the app to the new project: signup, roles, company scoping | Done        | `feat/cut-over` (on top of C)           |
 | D2   | Worker invites and password reset                                 | Not started |                                         |
 | E    | End-to-end tests, CAPTCHA, final docs                             | Not started |                                         |
 
@@ -355,6 +325,37 @@ Also fixed:
 - 182 unit tests (21 new), typecheck, lint, build, and the 86 database checks.
 - The Vercel build's function run locally: pages get the frame headers with `VERCEL=1` and not without.
 
+### D1: worker app, office and docs
+
+**Worker app on the signed-in worker:**
+
+- `src/lib/worker-store.ts` and the "whose jobs to show" picker are gone. `useCurrentWorker()` (`src/hooks/use-viewer.ts`) finds the signed-in person's worker record. A boss has one too, so a boss opening `/mobile` sees their own jobs.
+- The language setting goes through `update_my_profile` (`updateMyLanguage`), which works for a worker. Before, it called the boss-only `saveWorker`.
+- Only a boss sees "Full site".
+- **Reopening a finished job** is shown only to a boss, on a one-off job. The database refuses a worker, and a weekly job's "done" now comes from its photo, which reopening wouldn't undo.
+- **Refused task changes are reported.** Skipping, reopening, adding, removing and approving tasks used to fail without a word; they now show the error.
+- **The schedule's Status control matches.** On a weekly task, "Done" can't be picked; the photo decides it. Once the task has this week's proof, the control is locked, since planned or skipped wouldn't show until next week. A one-off task keeps the boss's manual "Done".
+
+**Decision: a weekly task is done only if it has a photo from this week.** Before, once a weekly task was proven, it showed as done in every later week, and the worker had to reopen it before the next photo. `listTasks` and `projectTasks` now read this week's `task_photos` and work out each weekly task's status from them (`provenThisWeek` and `weeklyStatus` in `src/lib/api/task-rows.ts`, with tests). The week is Monday to Sunday on the company's calendar, the same week `complete_task` allows one proof in. The office screens use the same status, so the dashboard, schedule and workers page agree with the phone. "Skipped" still carries over; see [Known limitations](#known-limitations).
+
+**Office:**
+
+- `/workers`: "Open in worker app" is gone. Each worker shows their email and whether they can sign in: "Can sign in", "Invited <date>" or "No login".
+- Plants show their code (`PL-0001`) instead of the uuid: plant table, plant card, map popup, plant dialog and the worker app's plant page. Plant search matches the code.
+- A bad id in a URL already showed "not found" (`getProject` and the client report return null for a non-uuid); nothing to change.
+
+**Docs:** `.env.example` and `docs/deploy-vercel.md` say the Supabase variables hold the production project's keys, that the service-role key now only serves the weather cache (and D2's invites), and how to set up the new project first (`supabase db push`, then the checklist).
+
+**Review:** a code-review pass found two issues:
+
+- **Fixed:** the schedule's Status control still offered "Done" on weekly tasks and let a boss reopen a proven one. Neither showed, since the status now comes from the photo (see above).
+- **Deferred to E:** the week is worked out in Tallinn time rather than the company's own zone; added to the time-zone entry in [Known limitations](#known-limitations).
+
+**Verified:**
+
+- 187 unit tests (5 new), typecheck, lint and build pass, and the 86 database checks.
+- No end-to-end run in a browser: the new schema isn't on any live project, and this machine has no Docker.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -395,14 +396,8 @@ Also fixed:
 
 ## Next steps
 
-1. **D1: switch to the new project**
-   - Signup and a company-setup step.
-   - Boss vs worker roles.
-   - Everything scoped to the company.
-   - Photos stored per company.
-   - The worker app uses the signed-in worker instead of a picker.
-2. **D2: worker invites and password reset.**
-3. **E: end-to-end tests and final docs.**
+1. **D2: worker invites and password reset.**
+2. **E: end-to-end tests, the signup CAPTCHA, and final docs.**
 
 The full technical plan (schema, access rules, file-by-file changes, risks) is in
 [technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
@@ -413,11 +408,7 @@ The full technical plan (schema, access rules, file-by-file changes, risks) is i
 - **Saving a client or site isn't atomic:** if saving its terms or crew fails after a new client or site was inserted, the new row stays, and pressing Save again makes a duplicate. The fix is one database function per save.
 - **Updates to a missing id succeed silently:** `saveClient`, `saveWorker` and `moveSite` report success when the id matches nothing (another company's row, say). Nothing is changed, but the caller isn't told.
 
-- **The work date uses the hardcoded company time zone.** `completeTask` works out the local date with `COMPANY_TZ` (Tallinn), not `companies.timezone`. `complete_task` accepts ±1 day around the company's today, so this only matters for a company far from Tallinn. Switching to the company's zone is in E.
-- **Row limit on client counts:**
-  - The problem: client counts are calculated in the app from full table reads, and Supabase returns at most 1,000 rows per query. Past 1,000 plants or monthly proof photos, the counts would silently come out low.
-  - Now: harmless at demo size.
-  - Fix: the `client_stats` database function (added in C). The app switches to it in D1.
+- **The app uses a hardcoded company time zone.** `completeTask` works out the local date, and `listTasks` works out which week a proof photo belongs to, with `COMPANY_TZ` (Tallinn), not `companies.timezone`. `complete_task` accepts ±1 day around the company's today, so the work date only matters for a company far from Tallinn. Around midnight between Sunday and Monday, a company in another zone could see a weekly task as done when the database would still take its proof, or the other way round. Switching to the company's zone is in E.
+- **Row limit on this week's proof:** a weekly task's "done" comes from this week's photos, read in one query, and Supabase returns at most 1,000 rows per query. Past 1,000 proof photos in a week, some weekly tasks would show as not done. Client counts no longer have this problem: they come from `client_stats` since D1.
 - **Hours follow the current task:** client hours use each task's current duration and site. Editing a task changes hours already counted this month.
-- **Until D1, a signed-in account can see everything.** Login is real, but there are no roles or company scoping yet. The client report and photo functions check that you're signed in, not which company you belong to. That's safe only while the demo database holds a single company.
-- **Tasks double as weekly templates:** a task is a repeating weekly template, but its done/approved status is stored on the template itself. That needs per-date task occurrences, which is the next data-model change after this migration.
+- **Tasks double as weekly templates:** a task is a repeating weekly template, but its status and approval are stored on the template itself. Since D1, a weekly task's "done" comes from this week's photo proof, but "skipped" and "approved" still carry over from week to week. The real fix is per-date task occurrences, the next data-model change after this migration.

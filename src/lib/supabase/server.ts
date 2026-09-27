@@ -58,8 +58,8 @@ export function getServerClient() {
 
 /**
  * Service-role client. Bypasses row-level security entirely, so it must never be reachable
- * from the browser or handed user-supplied filters. For the A3 seed script and trusted
- * server-side writes only — anything acting on behalf of a user wants `getServerClient`.
+ * from the browser or handed user-supplied filters. For trusted server-side work only (today,
+ * the shared weather cache) — anything acting on behalf of a user wants `getServerClient`.
  *
  * The key is read from `process.env` at call time (not `import.meta.env`) so it is never
  * inlined into a bundle.

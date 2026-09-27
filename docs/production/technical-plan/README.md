@@ -37,14 +37,17 @@ The app is a hackathon demo. It has no login: every visitor is silently signed i
 
 ---
 
-## Status and working rules (updated 2026-09-23)
+## Status and working rules (updated 2026-09-27)
 
 | Step                                 | State                                                                                                           |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | A1: demo data removed                | **Done**, committed locally on `chore/remove-demo-data` (08d58ea and ae79921; the second fixes review findings) |
 | A2: dead code and template leftovers | **Done**, committed locally on `chore/remove-dead-code`, stacked on A1 (b08c65a)                                |
-| B: real login                        | **Next.** Branch `feat/real-login`, stacked on A2                                                               |
-| C, D1, D2, E                         | Not started                                                                                                     |
+| B: real login                        | **Done**, on `feat/real-login`, stacked on A2                                                                   |
+| C: new schema                        | **Done**, on `feat/production-schema`, stacked on B                                                             |
+| D1: cut-over                         | **Done**, on `feat/cut-over`, stacked on C                                                                      |
+| D2: invites and password reset       | **Next.** Branch `feat/worker-invites`, stacked on D1                                                           |
+| E: hardening and docs                | Not started                                                                                                     |
 
 - **Branches stay local** (user's choice). No pushes or PRs until the user asks. Each PR gets its own stacked branch and local commits.
 - **Document as we go.** New living doc `docs/production/README.md`; the name gets past the markdown-write hook. It's linked from the root README and updated with every PR:

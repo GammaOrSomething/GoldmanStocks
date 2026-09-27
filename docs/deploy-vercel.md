@@ -7,20 +7,26 @@ unaffected and still target Cloudflare.
 
 ## One-time setup
 
-1. **Import the repo** at vercel.com → *Add New… → Project*, pick this GitHub repo and the
+1. **Set up the production Supabase project** first: create it, then
+   `bunx supabase link --project-ref <ref>` and `bunx supabase db push` to apply
+   `supabase/migrations/` (see [`supabase/README.md`](../supabase/README.md#production-project)).
+   Auth URLs, custom SMTP, email templates and the signup CAPTCHA are set in its dashboard; the
+   list is under "Before D1" in [the migration log's checklist](production/README.md#your-checklist-things-only-you-can-do).
+   Without SMTP, signup confirmations and worker invites never arrive.
+2. **Import the repo** at vercel.com → *Add New… → Project*, pick this GitHub repo and the
    branch to deploy. `vercel.json` already sets the install/build commands and the region —
    leave *Framework Preset* on **Other** and the output directory empty.
-2. **Environment variables** (*Settings → Environment Variables*, for Production and Preview):
+3. **Environment variables** (*Settings → Environment Variables*, for Production and Preview):
 
    | Variable | Secret? | Notes |
    | --- | --- | --- |
-   | `VITE_SUPABASE_URL` | no | **needed at build time** — Vite inlines it into the browser bundle |
+   | `VITE_SUPABASE_URL` | no | the production project's; **needed at build time** — Vite inlines it into the browser bundle |
    | `VITE_SUPABASE_ANON_KEY` | no | **needed at build time**, same reason |
-   | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | photo uploads/storage; never give it a `VITE_` prefix |
+   | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | bypasses row-level security; only the shared weather cache uses it (worker invites too, from D2). Never give it a `VITE_` prefix |
    | `OPENAI_API_KEY` | **yes** | plan explanation and offer drafts |
    | `OPENAI_MODEL` | no | optional, defaults to `gpt-4o` |
 
-3. **Deploy.** Every push to the connected branch redeploys; pull requests get preview URLs.
+4. **Deploy.** Every push to the connected branch redeploys; pull requests get preview URLs.
 
 ## Notes
 
