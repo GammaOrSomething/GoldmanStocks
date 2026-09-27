@@ -119,7 +119,7 @@ function PlantForm({
         </DialogTitle>
         <DialogDescription>
           {plant
-            ? `${plant.id} · changes are saved for everyone.`
+            ? `${plant.code} · changes are saved for everyone.`
             : "It's placed at the site's centre — register it from the worker app to pin it by GPS."}
         </DialogDescription>
       </DialogHeader>

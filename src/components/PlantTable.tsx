@@ -104,7 +104,7 @@ export function PlantTableSection({
                   className="group h-16 transition-colors hover:bg-data-violet/5"
                 >
                   <TableCell className="sticky left-0 z-10 border-r bg-card px-4 font-mono text-xs font-medium text-muted-foreground group-hover:bg-[color-mix(in_oklab,var(--data-violet)_5%,var(--card))]">
-                    {p.id}
+                    {p.code}
                   </TableCell>
                   <TableCell>
                     <p className="font-medium">{p.common}</p>
@@ -188,7 +188,7 @@ export function PlantCalendarDialog({
               <DialogTitle>
                 {plant.common}{" "}
                 <span className="font-mono text-xs text-muted-foreground">
-                  {plant.id}
+                  {plant.code}
                 </span>
               </DialogTitle>
               <DialogDescription>

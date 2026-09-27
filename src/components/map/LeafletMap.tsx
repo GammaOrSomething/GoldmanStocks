@@ -234,7 +234,7 @@ export function SiteMap({ project, plants, ...frame }: SiteMapProps) {
         >
           <Popup>
             <p className="font-mono text-[11px] text-muted-foreground">
-              {plant.id}
+              {plant.code}
             </p>
             <p className="text-sm font-semibold">{plant.common}</p>
             <p className="text-xs italic text-muted-foreground">

@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Pencil, Smartphone, UserPlus } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Mail, Pencil, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
@@ -7,13 +7,13 @@ import { WorkerDialog } from "@/components/forms/WorkerDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/hooks/use-week-plan";
 import { listTasks } from "@/lib/api/tasks";
 import { listWorkers } from "@/lib/api/workers";
 import { weekDays } from "@/lib/labels";
 import { taskDateIn } from "@/lib/task-schedule";
 import type { Worker } from "@/lib/types";
-import { planWeekDates } from "@/lib/weather";
-import { setActiveWorker } from "@/lib/worker-store";
+import { localDate, planWeekDates } from "@/lib/weather";
 
 export const Route = createFileRoute("/workers")({
   head: () => ({
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/workers")({
       { property: "og:title", content: "Workers — Goldman Stocks" },
       {
         property: "og:description",
-        content: "Crew overview with weekly workload and worker app access.",
+        content: "Crew overview with weekly workload and who can sign in.",
       },
     ],
   }),
@@ -38,9 +38,16 @@ export const Route = createFileRoute("/workers")({
   component: Workers,
 });
 
+/** Whether this worker can sign in to the app yet. Invitations arrive in D2. */
+function loginStatus(w: Worker): string {
+  if (w.hasLogin) return "Can sign in";
+  if (w.invitedAt)
+    return `Invited ${formatDate(localDate(new Date(w.invitedAt)))}`;
+  return "No login";
+}
+
 function Workers() {
   const { workers, tasks } = Route.useLoaderData();
-  const navigate = useNavigate();
   // undefined = closed, null = new worker, a worker = editing them
   const [editing, setEditing] = useState<Worker | null | undefined>();
   const languages = [...new Set(workers.map((w) => w.language))].join(", ");
@@ -144,16 +151,15 @@ function Workers() {
                   })}
                 </div>
 
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    setActiveWorker(w.id);
-                    void navigate({ to: "/mobile" });
-                  }}
-                >
-                  <Smartphone className="size-4" /> Open in worker app
-                </Button>
+                <div className="flex items-center justify-between gap-3 border-t pt-3 text-sm">
+                  <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                    <Mail className="size-4 shrink-0" />
+                    <span className="truncate">{w.email || "No email"}</span>
+                  </p>
+                  <Badge variant={w.hasLogin ? "secondary" : "outline"}>
+                    {loginStatus(w)}
+                  </Badge>
+                </div>
               </CardContent>
             </Card>
           );

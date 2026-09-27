@@ -82,7 +82,7 @@ function Plants() {
           if (kind !== "All" && p.kind !== kind) return false;
           if (!q) return true;
           return [
-            p.id,
+            p.code,
             p.species,
             p.common,
             p.client,
