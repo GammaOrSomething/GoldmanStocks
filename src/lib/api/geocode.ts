@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
 import { requireBoss } from "./session";
+import { spendAllowance } from "./usage";
 
 /**
  * Address search for placing work sites, via OpenStreetMap's Nominatim (free, no key). Called
@@ -56,8 +57,9 @@ function toPlace(p: NominatimPlace): Place {
 }
 
 async function nominatim(path: string, params: Record<string, string>) {
-  // Bosses only (they place sites): keeps this from being an open proxy to Nominatim.
-  await requireBoss();
+  // Bosses only (they place sites): keeps this from being an open proxy to Nominatim. And
+  // metered per company, since every company shares our server's standing with Nominatim.
+  await spendAllowance(await requireBoss(), "geocode");
   const url = `${NOMINATIM}${path}?${new URLSearchParams({ format: "jsonv2", addressdetails: "1", ...params })}`;
   const res = await fetch(url, {
     headers: HEADERS,

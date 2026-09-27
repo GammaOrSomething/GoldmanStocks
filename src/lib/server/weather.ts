@@ -16,6 +16,12 @@ import {
 /** How long a cached forecast counts as fresh. */
 export const WEATHER_TTL_MS = 3 * 60 * 60 * 1000;
 
+/**
+ * The most sites fetched in one load. Every company shares our Open-Meteo quota, so one company
+ * with hundreds of sites must not use it up; the rest are fetched on later loads.
+ */
+export const MAX_FETCH_SITES = 50;
+
 type CachedSite = { fetchedAt: string; payload: OpenMeteoSite };
 
 /** Where forecasts are cached, keyed by `siteKey()`. */
@@ -98,7 +104,9 @@ export async function loadForecasts(
   const isFresh = (entry: CachedSite | undefined) =>
     entry !== undefined &&
     now.getTime() - new Date(entry.fetchedAt).getTime() < WEATHER_TTL_MS;
-  const toFetch = sites.filter((s) => !isFresh(cached.get(s.id)));
+  const toFetch = sites
+    .filter((s) => !isFresh(cached.get(s.id)))
+    .slice(0, MAX_FETCH_SITES);
 
   const used = new Map<string, CachedSite>();
   for (const site of sites) {
@@ -130,13 +138,16 @@ export async function loadForecasts(
       );
     } catch (error) {
       fetchError = error;
-      for (const site of toFetch) {
-        const entry = cached.get(site.id);
-        if (entry) {
-          used.set(site.id, entry);
-          stale = true;
-        }
-      }
+    }
+  }
+
+  // Sites not fetched this time (the fetch failed, or they were past the cap) fall back to an
+  // older forecast if there is one.
+  for (const site of sites) {
+    const entry = cached.get(site.id);
+    if (!used.has(site.id) && entry) {
+      used.set(site.id, entry);
+      stale = true;
     }
   }
 

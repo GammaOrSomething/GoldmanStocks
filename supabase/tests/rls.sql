@@ -608,6 +608,7 @@ select tests.ok(
   'a boss sees which of the company''s logins have been confirmed'
 );
 select tests.ok(public.bump_usage('invite'), 'a boss can spend the invite allowance');
+select tests.ok(public.bump_usage('geocode'), 'a boss can spend the address-search allowance');
 
 reset role;
 select tests.login(tests.id('bella'));
@@ -630,6 +631,10 @@ select tests.ok(
 select tests.throws(
   $$select public.bump_usage('invite')$$,
   '42501', 'a worker cannot spend the invite allowance'
+);
+select tests.throws(
+  $$select public.bump_usage('geocode')$$,
+  '42501', 'a worker cannot spend the address-search allowance'
 );
 
 reset role;

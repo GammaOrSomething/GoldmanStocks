@@ -478,7 +478,7 @@ export type Database = {
         Returns: undefined;
       };
       bump_usage: {
-        Args: { p_kind: "ai_plan" | "ai_outreach" | "invite" };
+        Args: { p_kind: "ai_plan" | "ai_outreach" | "invite" | "geocode" };
         Returns: boolean;
       };
       client_stats: {

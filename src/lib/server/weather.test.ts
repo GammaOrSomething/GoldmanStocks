@@ -5,6 +5,7 @@ import type { OpenMeteoSite } from "@/lib/weather";
 
 import {
   loadForecasts,
+  MAX_FETCH_SITES,
   memoryWeatherCache,
   trimToPlanWindow,
   WEATHER_TTL_MS,
@@ -116,6 +117,55 @@ describe("loadForecasts", () => {
       NOW,
     );
     expect(Object.keys(out.forecasts)).toEqual(["p1", "p4"]);
+  });
+
+  test("fetches at most MAX_FETCH_SITES sites per load; the rest wait for the next", async () => {
+    // One company's many sites must not use up the forecast quota every company shares.
+    const many = Array.from({ length: MAX_FETCH_SITES + 3 }, (_, i) => ({
+      id: `s${i}`,
+      lat: 50 + i / 10,
+      lng: 20,
+    }));
+    const cache = memoryWeatherCache();
+    const first = fakeFetch(
+      Array.from({ length: MAX_FETCH_SITES }, () => payload(15)),
+    );
+    const week = await loadForecasts(many, cache, first.fn, NOW);
+    expect(first.calls).toHaveLength(1);
+    expect(Object.keys(week.forecasts)).toHaveLength(MAX_FETCH_SITES);
+    expect(week.missing).toEqual([
+      `s${MAX_FETCH_SITES}`,
+      `s${MAX_FETCH_SITES + 1}`,
+      `s${MAX_FETCH_SITES + 2}`,
+    ]);
+
+    // The next load fetches only the three still missing.
+    const second = fakeFetch([payload(15), payload(15), payload(15)]);
+    const next = await loadForecasts(many, cache, second.fn, NOW);
+    expect(second.calls).toHaveLength(1);
+    expect(next.missing).toEqual([]);
+  });
+
+  test("a site past the cap is served from an older forecast if there is one", async () => {
+    const many = Array.from({ length: MAX_FETCH_SITES + 1 }, (_, i) => ({
+      id: `s${i}`,
+      lat: 50 + i / 10,
+      lng: 20,
+    }));
+    const cache = memoryWeatherCache();
+    const last = many[MAX_FETCH_SITES]!;
+    // Only the last site has a forecast, and it has gone stale.
+    await loadForecasts([last], cache, fakeFetch([payload(9)]).fn, NOW);
+    const later = new Date(NOW.getTime() + WEATHER_TTL_MS + 1);
+    const week = await loadForecasts(
+      many,
+      cache,
+      fakeFetch(Array.from({ length: MAX_FETCH_SITES }, () => payload(15))).fn,
+      later,
+    );
+    expect(week.missing).toEqual([]);
+    expect(week.stale).toBe(true);
+    expect(week.forecasts[last.id]?.daily[0]?.tempMaxC).toBe(9);
   });
 
   test("a response with the wrong number of sites is rejected", async () => {
