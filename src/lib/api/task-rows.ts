@@ -5,6 +5,8 @@
 import { z } from "zod/v4";
 
 import type { Database } from "../supabase/types";
+import type { Task } from "../types";
+import { addDays, localDate } from "../weather";
 
 type TaskRow = Database["public"]["Tables"]["tasks"]["Insert"];
 type TaskUpdate = Database["public"]["Tables"]["tasks"]["Update"];
@@ -119,4 +121,37 @@ export function taskToRow(task: NewTask): TaskRow {
     status: task.status,
     approved_at: task.approvedAt ?? null,
   };
+}
+
+/**
+ * The tasks with photo proof in the week starting `monday`, by the company's calendar. A weekly
+ * task gets one proof per week (`complete_task`), so this is what "done this week" means for it.
+ */
+export function provenThisWeek(
+  photos: readonly { task_id: string; taken_at: string }[],
+  monday: string,
+): Set<string> {
+  const nextMonday = addDays(monday, 7);
+  return new Set(
+    photos
+      .filter((p) => {
+        const day = localDate(new Date(p.taken_at));
+        return day >= monday && day < nextMonday;
+      })
+      .map((p) => p.task_id),
+  );
+}
+
+/**
+ * A task's status for the current week. A weekly template's stored status outlives the week it
+ * was set in, so its "done" comes from this week's photo proof instead. "Skipped" still carries
+ * over until tasks get per-date occurrences.
+ */
+export function weeklyStatus(
+  task: Pick<Task, "id" | "date" | "status">,
+  proven: ReadonlySet<string>,
+): Task["status"] {
+  if (task.date) return task.status;
+  if (proven.has(task.id)) return "done";
+  return task.status === "done" ? "planned" : task.status;
 }

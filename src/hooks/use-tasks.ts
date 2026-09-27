@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { toast } from "sonner";
 
 import {
   addTask,
@@ -52,23 +53,30 @@ export function useTaskActions() {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: TASKS_KEY });
   };
+  // These run fire-and-forget, so a refusal (a worker reopening a finished job, say) would
+  // otherwise vanish without a word.
+  const onError = (error: Error) => toast.error(error.message);
 
   const update = useMutation({
     mutationFn: (input: { id: string; patch: TaskPatch }) =>
       updateTask({ data: input }),
     onSuccess: invalidate,
+    onError,
   });
   const remove = useMutation({
     mutationFn: (id: string) => removeTask({ data: id }),
     onSuccess: invalidate,
+    onError,
   });
   const add = useMutation({
     mutationFn: (task: Omit<Task, "id">) => addTask({ data: task }),
     onSuccess: invalidate,
+    onError,
   });
   const replace = useMutation({
     mutationFn: (tasks: Task[]) => replaceTasks({ data: tasks }),
     onSuccess: invalidate,
+    onError,
   });
 
   /**

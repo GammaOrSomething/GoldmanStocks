@@ -7,7 +7,7 @@ import { PlantCalendar } from "@/components/PlantCalendar";
 import { PlantPhoto } from "@/components/PlantPhoto";
 import { usePlants } from "@/hooks/use-data";
 import type { PlantStatus } from "@/lib/types";
-import { useActiveWorker, useWorkerProjects } from "@/lib/worker-store";
+import { useCurrentWorker, useWorkerProjects } from "@/hooks/use-viewer";
 
 const dotClass: Record<PlantStatus, string> = {
   healthy: "bg-status-healthy",
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/mobile/plants")({
 });
 
 function MobilePlants() {
-  const worker = useActiveWorker();
+  const worker = useCurrentWorker();
   const myProjects = useWorkerProjects(worker?.id);
   const plants = usePlants();
   const myPlants = useMemo(
@@ -34,7 +34,7 @@ function MobilePlants() {
     const q = query.trim().toLowerCase();
     return myPlants.filter((p) =>
       q
-        ? [p.id, p.species, p.common, p.client, p.site].some((v) =>
+        ? [p.code, p.species, p.common, p.client, p.site].some((v) =>
             v.toLowerCase().includes(q),
           )
         : true,
@@ -60,7 +60,7 @@ function MobilePlants() {
             {open.common}
           </p>
           <p className="text-xs text-muted-foreground">
-            {open.id} · {open.species}
+            {open.code} · {open.species}
           </p>
           <p className="text-xs text-muted-foreground">
             {open.client} · {open.site}

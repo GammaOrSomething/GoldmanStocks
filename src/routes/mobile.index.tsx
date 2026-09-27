@@ -19,7 +19,7 @@ import type { Task } from "@/lib/types";
 import { useTaskActions } from "@/hooks/use-tasks";
 import { formatDate, useWeekPlan } from "@/hooks/use-week-plan";
 import { taskDateIn } from "@/lib/task-schedule";
-import { useActiveWorker } from "@/lib/worker-store";
+import { useCurrentWorker, useViewer } from "@/hooks/use-viewer";
 
 export const Route = createFileRoute("/mobile/")({
   component: WorkerDay,
@@ -41,7 +41,11 @@ function WorkerDay() {
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingTask = useRef<string | null>(null);
 
-  const worker = useActiveWorker();
+  const worker = useCurrentWorker();
+  // Only a boss reopens a finished one-off job (the database refuses a worker). A weekly job is
+  // done by this week's photo, which reopening wouldn't undo, so it has no reopen button.
+  const isBoss = useViewer()?.member?.role === "boss";
+  const canReopen = (t: Task) => isBoss && Boolean(t.date);
   const today = week.strip[day];
   const Icon = weatherIcon[today?.icon ?? "cloud"];
 
@@ -216,18 +220,20 @@ function WorkerDay() {
                     <span className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-status-healthy/10 py-3 text-sm font-semibold text-status-healthy">
                       <Check className="size-4" /> Done · photo saved
                     </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        taskActions.update(t.id, { status: "planned" })
-                      }
-                      className="size-11 text-muted-foreground shadow-none"
-                      aria-label="Mark as not done"
-                    >
-                      <RotateCcw className="size-4" />
-                    </Button>
+                    {canReopen(t) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() =>
+                          taskActions.update(t.id, { status: "planned" })
+                        }
+                        className="size-11 text-muted-foreground shadow-none"
+                        aria-label="Mark as not done"
+                      >
+                        <RotateCcw className="size-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">

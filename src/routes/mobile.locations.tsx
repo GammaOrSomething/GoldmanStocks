@@ -3,7 +3,7 @@ import { MapPin, Users } from "lucide-react";
 
 import { SiteMap } from "@/components/map";
 import { usePlants, useWorkers } from "@/hooks/use-data";
-import { useActiveWorker, useWorkerProjects } from "@/lib/worker-store";
+import { useCurrentWorker, useWorkerProjects } from "@/hooks/use-viewer";
 
 export const Route = createFileRoute("/mobile/locations")({
   component: MobileLocations,
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/mobile/locations")({
 });
 
 function MobileLocations() {
-  const worker = useActiveWorker();
+  const worker = useCurrentWorker();
   const myProjects = useWorkerProjects(worker?.id);
   const allPlants = usePlants();
   const workers = useWorkers();

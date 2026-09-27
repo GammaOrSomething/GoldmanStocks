@@ -1,7 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
+import type { Database } from "../supabase/types";
 import type { Task } from "../types";
+import { addDays, planWeekDates } from "../weather";
 import { clientNameByProject } from "./lookups";
 import { toTask } from "./mappers";
 import { getAuthedClient, requireBoss } from "./session";
@@ -10,27 +13,53 @@ import {
   TaskInput,
   TaskPatch,
   patchToRow,
+  provenThisWeek,
   taskToRow,
+  weeklyStatus,
 } from "./task-rows";
 
 export type { TaskPatch } from "./task-rows";
 
+type Db = SupabaseClient<Database>;
+type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+
+/**
+ * The tasks with photo proof this week. Read from a day early, since the week starts on the
+ * company's Monday and `taken_at` is UTC; `provenThisWeek` does the exact cut.
+ */
+async function loadProvenThisWeek(db: Db): Promise<Set<string>> {
+  const [monday = ""] = planWeekDates(new Date());
+  const { data, error } = await db
+    .from("task_photos")
+    .select("task_id, taken_at")
+    .gte("taken_at", `${addDays(monday, -1)}T00:00:00Z`);
+  if (error) throw new Error(error.message);
+  return provenThisWeek(data ?? [], monday);
+}
+
+/** Task rows as the app's tasks, with this week's status for weekly templates. */
+function toTasks(
+  rows: readonly TaskRow[],
+  clientByProject: ReadonlyMap<string, string>,
+  proven: ReadonlySet<string>,
+): Task[] {
+  return rows.map((row) => {
+    const task = toTask(row, clientByProject.get(row.project_id) ?? "");
+    return { ...task, status: weeklyStatus(task, proven) };
+  });
+}
+
 /** Every task in the plan. */
 export const listTasks = createServerFn({ method: "GET" }).handler(
   async (): Promise<Task[]> => {
-    const [{ data, error }, clientByProject] = await Promise.all([
-      (await getAuthedClient())
-        .from("tasks")
-        .select("*")
-        .order("day")
-        .order("start")
-        .order("title"),
+    const db = await getAuthedClient();
+    const [{ data, error }, clientByProject, proven] = await Promise.all([
+      db.from("tasks").select("*").order("day").order("start").order("title"),
       clientNameByProject(),
+      loadProvenThisWeek(db),
     ]);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row) =>
-      toTask(row, clientByProject.get(row.project_id) ?? ""),
-    );
+    return toTasks(data ?? [], clientByProject, proven);
   },
 );
 
@@ -39,8 +68,9 @@ export const projectTasks = createServerFn({ method: "GET" })
   .validator((projectId: string) => projectId)
   .handler(async ({ data: projectId }): Promise<Task[]> => {
     if (!z.uuid().safeParse(projectId).success) return [];
-    const [{ data, error }, clientByProject] = await Promise.all([
-      (await getAuthedClient())
+    const db = await getAuthedClient();
+    const [{ data, error }, clientByProject, proven] = await Promise.all([
+      db
         .from("tasks")
         .select("*")
         .eq("project_id", projectId)
@@ -48,11 +78,10 @@ export const projectTasks = createServerFn({ method: "GET" })
         .order("start")
         .order("title"),
       clientNameByProject(),
+      loadProvenThisWeek(db),
     ]);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row) =>
-      toTask(row, clientByProject.get(row.project_id) ?? ""),
-    );
+    return toTasks(data ?? [], clientByProject, proven);
   });
 
 // --- mutations -------------------------------------------------------------------------

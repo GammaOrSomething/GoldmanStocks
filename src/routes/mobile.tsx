@@ -24,6 +24,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { useViewer } from "@/hooks/use-viewer";
 import { requestCapture } from "@/lib/photo-store";
 
 export const Route = createFileRoute("/mobile")({
@@ -62,6 +63,8 @@ const tabs = [
 function MobileLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
+  // A worker can't open the office pages anyway; the guard sends them back here.
+  const isBoss = useViewer()?.member?.role === "boss";
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background">
@@ -79,9 +82,11 @@ function MobileLayout() {
             Worker app
           </p>
         </div>
-        <Link to="/" className="ml-auto text-xs font-medium text-primary">
-          Full site
-        </Link>
+        {isBoss ? (
+          <Link to="/" className="ml-auto text-xs font-medium text-primary">
+            Full site
+          </Link>
+        ) : null}
       </header>
 
       <main className="flex-1 px-5 pt-6 pb-28">

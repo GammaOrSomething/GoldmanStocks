@@ -683,6 +683,10 @@ function TaskDialog({
   const taskActions = useTaskActions();
   const workers = useWorkers();
   if (!task) return null;
+  // A weekly job's "done" is this week's photo proof (`weeklyStatus`), so it can't be set here,
+  // and once proven, planned or skipped wouldn't show until next week.
+  const weekly = !task.date;
+  const provenWeekly = weekly && task.status === "done";
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
       <DialogContent>
@@ -786,6 +790,7 @@ function TaskDialog({
             <Label>Status</Label>
             <Select
               value={task.status}
+              disabled={provenWeekly}
               onValueChange={(v) =>
                 taskActions.update(task.id, { status: v as Task["status"] })
               }
@@ -795,10 +800,19 @@ function TaskDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="planned">Planned</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
+                <SelectItem value="done" disabled={weekly}>
+                  Done
+                </SelectItem>
                 <SelectItem value="skipped">Skipped</SelectItem>
               </SelectContent>
             </Select>
+            {weekly ? (
+              <p className="text-xs text-muted-foreground">
+                {provenWeekly
+                  ? "Done with this week's photo proof. It starts as planned next week."
+                  : "A weekly job is done once it has this week's photo proof."}
+              </p>
+            ) : null}
           </div>
         </div>
 

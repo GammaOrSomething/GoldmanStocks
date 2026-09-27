@@ -5,8 +5,10 @@ import {
   NewTaskInput,
   TaskPatch,
   patchToRow,
+  provenThisWeek,
   taskToRow,
   weekdayFromDate,
+  weeklyStatus,
 } from "./task-rows";
 
 const SITE = "11111111-1111-4111-8111-111111111111";
@@ -119,5 +121,58 @@ describe("validation", () => {
     expect(TaskPatch.safeParse({ status: "lost" }).success).toBe(false);
     expect(TaskPatch.safeParse({ date: "23.09.2026" }).success).toBe(false);
     expect(TaskPatch.safeParse({ date: null }).success).toBe(true);
+  });
+});
+
+describe("provenThisWeek", () => {
+  const MONDAY = "2026-09-21";
+  const photo = (task_id: string, taken_at: string) => ({ task_id, taken_at });
+
+  test("keeps tasks with a photo taken Monday to Sunday, company time", () => {
+    const proven = provenThisWeek(
+      [
+        // 00:30 Monday in Tallinn is still Sunday in UTC
+        photo("a", "2026-09-20T21:30:00Z"),
+        photo("b", "2026-09-27T20:00:00Z"),
+      ],
+      MONDAY,
+    );
+    expect([...proven].sort()).toEqual(["a", "b"]);
+  });
+
+  test("leaves out last week's and next week's photos", () => {
+    const proven = provenThisWeek(
+      [
+        // 23:30 Sunday in Tallinn
+        photo("last", "2026-09-20T20:30:00Z"),
+        // 00:30 the next Monday in Tallinn
+        photo("next", "2026-09-27T21:30:00Z"),
+      ],
+      MONDAY,
+    );
+    expect(proven.size).toBe(0);
+  });
+});
+
+describe("weeklyStatus", () => {
+  const proven = new Set([TASK]);
+  const none = new Set<string>();
+
+  test("a weekly task is done only when proven this week", () => {
+    expect(weeklyStatus({ ...task, status: "planned" }, proven)).toBe("done");
+    expect(weeklyStatus({ ...task, status: "done" }, none)).toBe("planned");
+  });
+
+  test("a skipped weekly task stays skipped unless it was proven", () => {
+    expect(weeklyStatus({ ...task, status: "skipped" }, none)).toBe("skipped");
+    expect(weeklyStatus({ ...task, status: "skipped" }, proven)).toBe("done");
+  });
+
+  test("a one-off task keeps its stored status", () => {
+    const oneOff = { ...task, date: "2026-09-23" };
+    expect(weeklyStatus({ ...oneOff, status: "done" }, none)).toBe("done");
+    expect(weeklyStatus({ ...oneOff, status: "planned" }, proven)).toBe(
+      "planned",
+    );
   });
 });

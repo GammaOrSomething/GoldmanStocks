@@ -1,20 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Camera, Languages, LogOut, MapPin, User } from "lucide-react";
+import { Bell, Camera, Languages, LogOut, MapPin } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useRefreshData, useWorkers } from "@/hooks/use-data";
+import { useRefreshData } from "@/hooks/use-data";
 import { useSignOut } from "@/hooks/use-sign-out";
-import { useViewer } from "@/hooks/use-viewer";
-import { saveWorker } from "@/lib/api/workers";
+import { useCurrentWorker, useViewer } from "@/hooks/use-viewer";
+import { updateMyLanguage } from "@/lib/api/workers";
 import { setPref, usePref } from "@/lib/phone-prefs";
-import {
-  setActiveWorker,
-  useActiveWorker,
-  useWorkerProjects,
-} from "@/lib/worker-store";
 
 export const Route = createFileRoute("/mobile/settings")({
   component: MobileSettings,
@@ -24,13 +19,13 @@ export const Route = createFileRoute("/mobile/settings")({
       {
         name: "description",
         content:
-          "Your account, whose jobs to show, app language and photo & location options.",
+          "Your account, the language you speak, and photo & location options.",
       },
       { property: "og:title", content: "Settings — Goldman Stocks worker app" },
       {
         property: "og:description",
         content:
-          "Your account, whose jobs to show, app language and photo & location options.",
+          "Your account, the language you speak, and photo & location options.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -38,47 +33,36 @@ export const Route = createFileRoute("/mobile/settings")({
   }),
 });
 
+type Language = "ET" | "LV" | "EN";
+
 /** English names for the toast; the buttons show each language's own name. */
-const LANGUAGE_NAMES: Record<string, string> = {
+const LANGUAGE_NAMES: Record<Language, string> = {
   ET: "Estonian",
   LV: "Latvian",
   EN: "English",
 };
 
-const languages = [
+const languages: { code: Language; label: string }[] = [
   { code: "ET", label: "Eesti" },
   { code: "EN", label: "English" },
   { code: "LV", label: "Latviešu" },
 ];
 
 function MobileSettings() {
-  const activeWorker = useActiveWorker();
-  const workerId = activeWorker?.id;
-  const workers = useWorkers();
-  const mySites = useWorkerProjects(workerId);
+  const worker = useCurrentWorker();
   const refresh = useRefreshData();
   const geoTag = usePref("geotag");
   const viewer = useViewer();
   const { signOut, pending: signingOut } = useSignOut();
   // The language a worker speaks lives on their record: the planner uses it to match them
   // with sites (Latvian speakers to Riga, …).
-  const language = activeWorker?.language ?? "ET";
+  const language = worker?.language ?? "ET";
   const setLanguage = useMutation({
-    mutationFn: (code: string) =>
-      activeWorker
-        ? saveWorker({
-            data: {
-              id: activeWorker.id,
-              name: activeWorker.name,
-              role: activeWorker.role,
-              language: code as "ET" | "LV" | "EN",
-            },
-          })
-        : Promise.reject(new Error("No worker selected")),
+    mutationFn: (code: Language) => updateMyLanguage({ data: code }),
     onSuccess: async (_, code) => {
       await refresh();
       toast.success(
-        `Saved — the planner now treats ${activeWorker?.name.split(" ")[0]} as speaking ${LANGUAGE_NAMES[code] ?? code}`,
+        `Saved — the planner now treats you as speaking ${LANGUAGE_NAMES[code]}`,
       );
     },
     onError: (error) => toast.error(error.message),
@@ -94,43 +78,9 @@ function MobileSettings() {
           Settings
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Saved on this phone.
+          {worker ? `${worker.name} · ${worker.role}` : "Loading…"}
         </p>
       </div>
-
-      <section className="space-y-4 rounded-lg border bg-card p-4 shadow-card">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <User className="size-4 text-primary" /> Whose jobs to show
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {workers.map((w) => (
-            <Button
-              key={w.id}
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setActiveWorker(w.id);
-                toast(`Showing ${w.name}'s jobs`);
-              }}
-              className={`h-10 rounded-lg px-3 ${
-                w.id === workerId
-                  ? "border-primary bg-primary font-semibold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                  : "bg-background text-muted-foreground shadow-none"
-              }`}
-            >
-              <span
-                className="size-2.5 rounded-full"
-                style={{ backgroundColor: w.color }}
-              />
-              {w.name}
-            </Button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          The app only shows {activeWorker?.name.split(" ")[0]}'s sites, jobs
-          and plants — {mySites.length} site(s) right now.
-        </p>
-      </section>
 
       <section className="space-y-4 rounded-lg border bg-card p-4 shadow-card">
         <h2 className="flex items-center gap-2 text-sm font-semibold">

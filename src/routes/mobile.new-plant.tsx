@@ -11,7 +11,7 @@ import { setCaptureHandler } from "@/lib/photo-store";
 import { PHOTO_TYPE_ERROR, photoType } from "@/lib/photo-types";
 import { createPlantPhotoUpload } from "@/lib/plants.functions";
 import { supabase } from "@/lib/supabase/client";
-import { useActiveWorker, useWorkerProjects } from "@/lib/worker-store";
+import { useCurrentWorker, useWorkerProjects } from "@/hooks/use-viewer";
 
 export const Route = createFileRoute("/mobile/new-plant")({
   component: NewPlant,
@@ -33,7 +33,7 @@ function NewPlant() {
   const navigate = useNavigate();
   const refresh = useRefreshData();
   const fileRef = useRef<HTMLInputElement>(null);
-  const worker = useActiveWorker();
+  const worker = useCurrentWorker();
   const projects = useWorkerProjects(worker?.id);
 
   const [preview, setPreview] = useState<string | null>(null);
