@@ -5,12 +5,15 @@
  * checks the session itself (`getAuthedClient`), and the database's row-level security decides
  * what that session may read or write.
  */
+import type { Area } from "../api/mappers";
 
 /** The company a signed-in person works for, and what they are there. */
 export type Member = {
   workerId: string;
   companyId: string;
   companyName: string;
+  /** where the company is based, or null until a boss sets it */
+  area: Area | null;
   role: "boss" | "worker";
   name: string;
 };

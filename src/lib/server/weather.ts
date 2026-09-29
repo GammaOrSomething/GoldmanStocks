@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { Area } from "@/lib/api/mappers";
 import {
   addDays,
   localDate,
@@ -184,6 +185,61 @@ export function trimToPlanWindow(week: WeekWeather, now: Date): WeekWeather {
     forecasts[id] = trimForecast(f, from, to);
   }
   return { ...week, forecasts };
+}
+
+/** The reserved id the company's own area is forecast under while it has no sites. */
+const AREA_ID = "company-area";
+
+export type AreaForecast = { city: string; forecast: SiteForecast };
+export type DashboardWeather = WeekWeather & {
+  /** whether the company has any sites, as the server saw it: the dashboard shouldn't guess */
+  hasSites: boolean;
+  area: AreaForecast | null;
+};
+
+/**
+ * The dashboard's week: every site's forecast, trimmed to the plan window. A company with no
+ * sites yet gets the forecast for where it's based instead, in the same single request. With
+ * neither there's nothing to forecast, which is an empty week rather than an outage.
+ */
+export async function loadWeekWeather(
+  sites: Site[],
+  area: Area | null,
+  cache: WeatherCache,
+  fetchJson: (url: string) => Promise<unknown>,
+  now: Date,
+): Promise<DashboardWeather> {
+  if (sites.length) {
+    const week = await loadForecasts(sites, cache, fetchJson, now);
+    return { ...trimToPlanWindow(week, now), hasSites: true, area: null };
+  }
+  if (!area) {
+    return {
+      forecasts: {},
+      fetchedAt: now.toISOString(),
+      stale: false,
+      missing: [],
+      hasSites: false,
+      area: null,
+    };
+  }
+  const week = trimToPlanWindow(
+    await loadForecasts(
+      [{ id: AREA_ID, lat: area.lat, lng: area.lng }],
+      cache,
+      fetchJson,
+      now,
+    ),
+    now,
+  );
+  const forecast = week.forecasts[AREA_ID];
+  return {
+    ...week,
+    forecasts: {},
+    missing: [],
+    hasSites: false,
+    area: forecast ? { city: area.city, forecast } : null,
+  };
 }
 
 /** Fetch JSON from Open-Meteo with a 10 s timeout. */

@@ -35,7 +35,7 @@ const SATELLITE = {
     "Imagery &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
 };
 
-/** Tallinn old town — where an empty map starts. */
+/** Tallinn old town — where an empty map starts when the company hasn't said where it's based. */
 const DEFAULT_CENTER: LatLng = { lat: 59.437, lng: 24.7536 };
 
 const STATUS_VAR: Record<PlantStatus, string> = {
@@ -154,6 +154,8 @@ export type SitesMapProps = Frame & {
   onMove?: ((projectId: string, to: LatLng) => void) | undefined;
   /** when set, clicking the map picks a spot (e.g. for a new site) */
   onPick?: ((at: LatLng) => void) | undefined;
+  /** where to start with no sites, e.g. where the company is based */
+  fallbackCenter?: LatLng | null | undefined;
 };
 
 export function SitesMap({
@@ -161,6 +163,7 @@ export function SitesMap({
   editable,
   onMove,
   onPick,
+  fallbackCenter,
   ...frame
 }: SitesMapProps) {
   const points = useMemo(
@@ -168,7 +171,7 @@ export function SitesMap({
     [projects],
   );
   return (
-    <Shell {...frame} center={points[0] ?? DEFAULT_CENTER}>
+    <Shell {...frame} center={points[0] ?? fallbackCenter ?? DEFAULT_CENTER}>
       <FitTo points={points} zoom={15} />
       <ClickTo onClick={onPick} />
       {projects.map((p) => (
@@ -260,6 +263,8 @@ export function SiteMap({ project, plants, ...frame }: SiteMapProps) {
 export type LocationPickerProps = Frame & {
   value: LatLng | null;
   onChange: (at: LatLng) => void;
+  /** where to start before anything is picked, e.g. where the company is based */
+  fallbackCenter?: LatLng | null | undefined;
 };
 
 /** Follow `value` when it's changed from outside (e.g. an address search). */
@@ -275,10 +280,11 @@ function FollowValue({ value }: { value: LatLng | null }) {
 export function LocationPicker({
   value,
   onChange,
+  fallbackCenter,
   ...frame
 }: LocationPickerProps) {
   return (
-    <Shell {...frame} center={value ?? DEFAULT_CENTER}>
+    <Shell {...frame} center={value ?? fallbackCenter ?? DEFAULT_CENTER}>
       <FollowValue value={value} />
       <ClickTo onClick={onChange} />
       {value ? (

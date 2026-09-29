@@ -15,6 +15,7 @@ const member = (role: Member["role"]): Member => ({
   workerId: "w1",
   companyId: "c1",
   companyName: "Alpha Gardens",
+  area: null,
   role,
   name: "Anna",
 });

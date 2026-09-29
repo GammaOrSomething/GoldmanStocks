@@ -187,6 +187,21 @@ select tests.ok(
   'a boss can rename the company and change its time zone'
 );
 
+-- Where the company is based: the forecast and maps use it until it has sites.
+update public.companies set city = 'Tallinn', lat = 59.437, lng = 24.7536;
+select tests.ok(
+  (select city = 'Tallinn' and lat = 59.437 and lng = 24.7536 from public.companies),
+  'a boss can set where the company is based'
+);
+select tests.throws(
+  $$update public.companies set lat = null$$,
+  '23514', 'a company''s coordinates are set together or not at all'
+);
+select tests.throws(
+  $$update public.companies set lat = 91$$,
+  '23514', 'a company''s latitude must be on the globe'
+);
+
 select public.set_project_crew(tests.id('site_a'), array[tests.id('worker_row_a')], tests.id('anna_row'));
 select tests.ok(
   (select count(*) = 2 and count(*) filter (where is_lead) = 1
@@ -391,6 +406,7 @@ select tests.throws(
     gen_random_uuid(), tests.id('site_b')),
   '42501', 'adding a plant under a made-up company fails the same way, so it reveals nothing'
 );
+update public.companies set city = 'Beta town', lat = 1, lng = 1 where id = tests.id('company_a');
 
 -- ─── Worker Walter at company A ──────────────────────────────────────────────
 
@@ -398,6 +414,10 @@ reset role;
 select tests.ok(
   (select status = 'planned' from public.tasks where id = tests.id('task_walter')),
   'B''s update of A''s task changed nothing'
+);
+select tests.ok(
+  (select city = 'Tallinn' and lat = 59.437 from public.companies where id = tests.id('company_a')),
+  'B''s boss cannot move where A is based'
 );
 select tests.login(tests.id('walter'));
 set local role authenticated;
@@ -414,13 +434,15 @@ update public.tasks set status = 'done', duration = 9 where id = tests.id('task_
 update public.workers set app_role = 'boss' where user_id = tests.id('walter');
 update public.plants set status = 'critical';
 delete from public.clients;
+update public.companies set city = 'Elsewhere', lat = 1, lng = 1;
 reset role;
 select tests.ok(
   (select status = 'planned' and duration = 1.5 from public.tasks where id = tests.id('task_walter'))
   and (select app_role = 'worker' from public.workers where id = tests.id('worker_row_a'))
   and (select count(*) = 0 from public.plants where status = 'critical')
-  and (select count(*) = 2 from public.clients),
-  'a worker''s direct writes to tasks, their own role, plants and clients change nothing'
+  and (select count(*) = 2 from public.clients)
+  and (select city = 'Tallinn' from public.companies where id = tests.id('company_a')),
+  'a worker''s direct writes to tasks, their own role, plants, clients and the company change nothing'
 );
 select tests.login(tests.id('walter'));
 set local role authenticated;

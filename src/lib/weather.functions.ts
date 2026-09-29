@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 
+import { toArea } from "@/lib/api/mappers";
 import { getAuthedClient } from "@/lib/api/session";
 import {
   fetchOpenMeteoJson,
-  loadForecasts,
+  loadWeekWeather,
   supabaseWeatherCache,
-  trimToPlanWindow,
 } from "@/lib/server/weather";
 
 // Server functions only: safe to import from routes. The handler (and everything it
@@ -16,33 +16,34 @@ import {
 // forecasts keyed by rounded coordinates. The client is imported inside the handler because
 // `@/lib/supabase/server` is server-only.
 
-export type { WeekWeather } from "@/lib/server/weather";
+export type { DashboardWeather, WeekWeather } from "@/lib/server/weather";
 
 /**
  * This week's forecast for every site, at the sites' coordinates in the database (so a site
- * added or moved on the map gets its own forecast). Cached in `weather_cache` for 3 hours.
+ * added or moved on the map gets its own forecast), or for where the company is based until
+ * it has sites. Cached in `weather_cache` for 3 hours.
  */
 export const getWeekWeather = createServerFn({ method: "GET" }).handler(
   async () => {
-    const now = new Date();
     const db = await getAuthedClient();
     const { getAdminClient } = await import("@/lib/supabase/server");
-    const { data: sites, error } = await db
-      .from("projects")
-      .select("id, lat, lng")
-      .order("id");
-    if (error) throw new Error(error.message);
+    const [sites, company] = await Promise.all([
+      db.from("projects").select("id, lat, lng").order("id"),
+      db.from("companies").select("city, lat, lng").maybeSingle(),
+    ]);
+    if (sites.error) throw new Error(sites.error.message);
+    if (company.error) throw new Error(company.error.message);
 
-    const week = await loadForecasts(
-      (sites ?? []).map((p) => ({
+    return loadWeekWeather(
+      (sites.data ?? []).map((p) => ({
         id: p.id,
         lat: Number(p.lat),
         lng: Number(p.lng),
       })),
+      toArea(company.data),
       supabaseWeatherCache(getAdminClient()),
       fetchOpenMeteoJson,
-      now,
+      new Date(),
     );
-    return trimToPlanWindow(week, now);
   },
 );

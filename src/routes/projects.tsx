@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRefreshData } from "@/hooks/use-data";
+import { useViewer } from "@/hooks/use-viewer";
 import { listClients } from "@/lib/api/clients";
 import { listPlants } from "@/lib/api/plants";
 import { listProjects, moveSite } from "@/lib/api/projects";
@@ -60,6 +61,7 @@ export const Route = createFileRoute("/projects")({
 function Projects() {
   const { projects, allPlants, workers, clients } = Route.useLoaderData();
   const refresh = useRefreshData();
+  const companyArea = useViewer()?.member?.area ?? null;
   const [moving, setMoving] = useState(false);
   const [placing, setPlacing] = useState(false);
   // null = closed; otherwise the site being edited, or where a new one was clicked
@@ -135,6 +137,7 @@ function Projects() {
         <CardContent>
           <SitesMap
             projects={projects}
+            fallbackCenter={companyArea}
             editable={moving}
             onMove={(id, to) => move.mutate({ id, to })}
             onPick={

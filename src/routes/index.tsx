@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CloudRain,
-  Cloud,
-  Sun,
   CheckCircle2,
   Leaf,
   Clock,
@@ -18,6 +16,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
+import { WeatherCard } from "@/components/dashboard/WeatherCard";
 import { AnimatedGroup } from "@/components/motion/AnimatedGroup";
 import { StatusDot } from "@/components/StatusDot";
 import { Button } from "@/components/ui/button";
@@ -34,13 +33,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, partOfDay, useWeekPlan } from "@/hooks/use-week-plan";
 import { findOpportunities } from "@/lib/outreach";
-import type { DayPlan } from "@/lib/planner";
+import { hasAssignedWork, type DayPlan } from "@/lib/planner";
 import { dataKeys, useClients } from "@/hooks/use-data";
 import { decideOffer, draftOffers, listOffers } from "@/lib/outreach.functions";
 import { explainPlan, type ExplainPlanInput } from "@/lib/plan.functions";
 import { useTaskActions } from "@/hooks/use-tasks";
 import type { Offer, OfferStatus, Plant, Task, Worker } from "@/lib/types";
-import { overnightRainMm, primaryProject } from "@/lib/weather";
+import { overnightRainMm } from "@/lib/weather";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -65,7 +64,6 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-const weatherIcon = { rain: CloudRain, cloud: Cloud, sun: Sun } as const;
 const NO_OFFERS: Offer[] = [];
 
 /** Next care date as YYYY-MM-DD, or null when none is planned. */
@@ -93,6 +91,10 @@ function Dashboard() {
     weather,
     forecasts,
     strip,
+    stripSource,
+    stripForecast,
+    areaCity,
+    needsArea,
     propose,
     plants,
     projects,
@@ -104,16 +106,17 @@ function Dashboard() {
   const proposal = useMemo(() => propose(today), [propose, today]);
   const todayTasks = proposal.tasks.filter((t) => t.day === today);
   const approved = todayTasks.some((t) => t.approvedAt);
+  // Nobody with a job today means nothing to review or approve, and nothing to spend an AI call
+  // on. The same rule as the server's (isEmptyPlan), so the tile and the dialog agree.
+  const hasPlan = hasAssignedWork(proposal.byWorker);
   const onShift = proposal.byWorker.filter((p) => p.stops.length > 0);
   const plannedHours = proposal.byWorker.reduce((sum, p) => sum + p.hours, 0);
   const weatherSkips = todayTasks.filter(
     (t) => t.status === "skipped" && t.weatherNote,
   ).length;
 
-  const primary = primaryProject(projects);
-  const primaryForecast = primary ? forecasts[primary.id] : undefined;
-  const rainOvernight = primaryForecast
-    ? Math.round(overnightRainMm(primaryForecast, todayDate))
+  const rainOvernight = stripForecast
+    ? Math.round(overnightRainMm(stripForecast, todayDate))
     : null;
 
   const due = plants.filter((p) => {
@@ -227,8 +230,12 @@ function Dashboard() {
       title={`${formatDate(todayDate, { weekday: "long" })} ${partOfDay(week.now)}`}
       subtitle={`${formatDate(todayDate, { day: "numeric", month: "long" })} · ${onShift.length} workers on shift · ${plantsUnderCare} plants under care`}
       actions={
-        <Button size="lg" disabled={approved} onClick={openReview}>
-          {approved ? "Plan approved" : "Approve today's plan"}
+        <Button size="lg" disabled={approved || !hasPlan} onClick={openReview}>
+          {approved
+            ? "Plan approved"
+            : hasPlan
+              ? "Approve today's plan"
+              : "Nothing to approve"}
         </Button>
       }
     >
@@ -292,8 +299,16 @@ function Dashboard() {
               <TopMetric
                 icon={approved ? CircleCheck : Sparkles}
                 label="AI plan"
-                value={approved ? "Ready" : "Review"}
-                note={approved ? "Approved" : "Awaiting approval"}
+                value={approved ? "Ready" : hasPlan ? "Review" : "—"}
+                note={
+                  approved
+                    ? "Approved"
+                    : hasPlan
+                      ? "Awaiting approval"
+                      : todayTasks.length
+                        ? "Nothing assigned"
+                        : "No jobs today"
+                }
                 color="coral"
               />
             </div>
@@ -353,65 +368,14 @@ function Dashboard() {
         </Card>
       </AnimatedGroup>
 
-      <Card className="mt-4 shadow-card">
-        <CardHeader className="flex-row items-center justify-between space-y-0 p-5 pb-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase text-muted-foreground">
-              Care forecast
-            </p>
-            <CardTitle className="mt-2 text-base">
-              This week's weather, applied to the plan
-            </CardTitle>
-          </div>
-          {weather.data?.stale ? (
-            <Badge variant="outline" className="text-status-attention">
-              offline — forecast from{" "}
-              {new Date(weather.data.fetchedAt).toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Badge>
-          ) : null}
-        </CardHeader>
-        <CardContent className="grid gap-2 px-5 pb-5 sm:grid-cols-7">
-          {weather.isPending ? (
-            weekDates.map((d) => (
-              <Skeleton key={d} className="h-[104px] rounded-md" />
-            ))
-          ) : weather.isError ? (
-            <p className="text-sm text-muted-foreground sm:col-span-5">
-              {weather.error.message}. The plan shows no weather changes until
-              the forecast loads.
-            </p>
-          ) : (
-            strip.map((w, i) => {
-              const Icon = weatherIcon[w.icon];
-              return (
-                <div
-                  key={w.day}
-                  className={`rounded-md border bg-secondary/50 p-3 ${i === today ? "border-data-violet/40 bg-data-violet/5" : ""}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase">
-                      {w.day}{" "}
-                      <span className="font-normal text-muted-foreground">
-                        {formatDate(weekDates[i] ?? "")}
-                      </span>
-                    </span>
-                    <Icon className="size-3.5 text-muted-foreground" />
-                  </div>
-                  <p className="mt-2 text-xl font-bold">
-                    {w.temp === null ? "—" : `${w.temp}°`}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {w.note}
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+      <WeatherCard
+        weather={weather}
+        strip={strip}
+        weekDates={weekDates}
+        today={today}
+        areaCity={stripSource === "area" ? areaCity : null}
+        needsArea={needsArea}
+      />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-12">
         <Card

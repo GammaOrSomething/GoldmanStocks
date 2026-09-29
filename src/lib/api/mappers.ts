@@ -25,6 +25,17 @@ export type Terms = { monthly_value: number; contract_until: string | null };
 /** A site's crew, in the order it should be listed: the lead first. */
 export type Crew = { workerIds: string[]; leadWorkerId: string };
 
+/** Where a company is based, for the forecast and maps until it has sites. */
+export type Area = { city: string; lat: number; lng: number };
+
+/** A company row's area, or null until both coordinates are set. */
+export function toArea(
+  row: Pick<Row<"companies">, "city" | "lat" | "lng"> | null,
+): Area | null {
+  if (!row || row.lat === null || row.lng === null) return null;
+  return { city: row.city, lat: row.lat, lng: row.lng };
+}
+
 /** "2026-09-12" -> "12 Sep", and today's date -> "Today". */
 export function toShortDate(value: string | null): string {
   if (!value) return "";

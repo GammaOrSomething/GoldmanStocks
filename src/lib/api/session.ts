@@ -11,6 +11,7 @@ import {
   type Viewer,
 } from "../auth/access";
 import type { Database } from "../supabase/types";
+import { toArea } from "./mappers";
 
 type Client = SupabaseClient<Database>;
 type User = { userId: string; email: string };
@@ -71,7 +72,7 @@ async function readMember(db: Client, userId: string): Promise<Member | null> {
       .is("archived_at", null)
       .not("accepted_at", "is", null)
       .maybeSingle(),
-    db.from("companies").select("name").maybeSingle(),
+    db.from("companies").select("name, city, lat, lng").maybeSingle(),
   ]);
   if (me.error) throw new Error(me.error.message);
   if (company.error) throw new Error(company.error.message);
@@ -80,6 +81,7 @@ async function readMember(db: Client, userId: string): Promise<Member | null> {
     workerId: me.data.id,
     companyId: me.data.company_id,
     companyName: company.data?.name ?? "",
+    area: toArea(company.data),
     role: me.data.app_role,
     name: me.data.name,
   };

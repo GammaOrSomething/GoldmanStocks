@@ -1,7 +1,14 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 
-import { crewsBySite, toClient, toPlant, toProject, toWorker } from "./mappers";
+import {
+  crewsBySite,
+  toArea,
+  toClient,
+  toPlant,
+  toProject,
+  toWorker,
+} from "./mappers";
 
 const stamp = "2026-09-01T00:00:00Z";
 
@@ -19,6 +26,22 @@ describe("crewsBySite", () => {
     });
     expect(crews.get("s2")).toEqual({ workerIds: ["w3"], leadWorkerId: "" });
     expect(crews.get("s3")).toBeUndefined();
+  });
+});
+
+describe("toArea", () => {
+  test("a company with coordinates has an area, labelled with its city", () => {
+    expect(toArea({ city: "Tallinn", lat: 59.437, lng: 24.7536 })).toEqual({
+      city: "Tallinn",
+      lat: 59.437,
+      lng: 24.7536,
+    });
+  });
+
+  test("no coordinates is no area, whatever the city says", () => {
+    expect(toArea({ city: "Tallinn", lat: null, lng: null })).toBeNull();
+    expect(toArea({ city: "", lat: null, lng: 24.7 })).toBeNull();
+    expect(toArea(null)).toBeNull();
   });
 });
 

@@ -5,6 +5,7 @@ import type { OpenMeteoSite } from "@/lib/weather";
 
 import {
   loadForecasts,
+  loadWeekWeather,
   MAX_FETCH_SITES,
   memoryWeatherCache,
   trimToPlanWindow,
@@ -179,6 +180,63 @@ describe("loadForecasts", () => {
     ).rejects.toThrow(
       "Weather unavailable: Open-Meteo returned 1 sites, expected 2",
     );
+  });
+});
+
+describe("loadWeekWeather", () => {
+  const area = { city: "Tallinn", lat: 59.437, lng: 24.7536 };
+
+  test("a company with sites gets their forecasts; its area isn't fetched", async () => {
+    const fetch = fakeFetch([payload(14), payload(16)]);
+    const week = await loadWeekWeather(
+      sites,
+      area,
+      memoryWeatherCache(),
+      fetch.fn,
+      NOW,
+    );
+    expect(Object.keys(week.forecasts).sort()).toEqual(["p1", "p4"]);
+    expect(week.hasSites).toBe(true);
+    expect(week.area).toBeNull();
+    expect(fetch.calls).toHaveLength(1);
+    expect(fetch.calls[0]).not.toContain("59.437");
+  });
+
+  test("with no sites, the forecast is for where the company is based", async () => {
+    const fetch = fakeFetch(payload(12));
+    const week = await loadWeekWeather(
+      [],
+      area,
+      memoryWeatherCache(),
+      fetch.fn,
+      NOW,
+    );
+    expect(week.forecasts).toEqual({});
+    expect(week.missing).toEqual([]);
+    expect(week.hasSites).toBe(false);
+    expect(week.area?.city).toBe("Tallinn");
+    expect(week.area?.forecast.daily[0]?.tempMaxC).toBe(12);
+    expect(fetch.calls[0]).toContain("latitude=59.437");
+  });
+
+  test("with no sites and no area there is nothing to forecast, which is not an outage", async () => {
+    const fetch = fakeFetch(new Error("should not be called"));
+    const week = await loadWeekWeather(
+      [],
+      null,
+      memoryWeatherCache(),
+      fetch.fn,
+      NOW,
+    );
+    expect(week).toEqual({
+      forecasts: {},
+      fetchedAt: NOW.toISOString(),
+      stale: false,
+      missing: [],
+      hasSites: false,
+      area: null,
+    });
+    expect(fetch.calls).toHaveLength(0);
   });
 });
 

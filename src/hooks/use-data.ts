@@ -19,6 +19,8 @@ export const dataKeys = {
   plants: ["plants"],
   tasks: ["tasks"],
   offers: ["offers"],
+  /** the week's forecast: it follows the sites (and the company's area), so refresh it with them */
+  weekWeather: ["week-weather"],
 } as const;
 
 const NO_CLIENTS: Client[] = [];

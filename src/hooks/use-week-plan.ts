@@ -2,15 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import { proposeDay } from "@/lib/planner";
-import { usePlants, useProjects, useWorkers } from "@/hooks/use-data";
+import { dataKeys, usePlants, useProjects, useWorkers } from "@/hooks/use-data";
 import { getWeekWeather } from "@/lib/weather.functions";
 import { useTasks } from "@/hooks/use-tasks";
 import { inWeek } from "@/lib/task-schedule";
 import {
   applyWeatherRules,
   COMPANY_TZ,
+  pickStripForecast,
   planWeekDates,
-  primaryProject,
   todayIndex,
   weatherStrip,
   type ForecastByProject,
@@ -60,7 +60,7 @@ export function useWeekPlan() {
   const today = todayIndex(now);
 
   const weather = useQuery({
-    queryKey: ["week-weather"],
+    queryKey: dataKeys.weekWeather,
     queryFn: () => getWeekWeather(),
     staleTime: 15 * 60 * 1000,
     retry: 1,
@@ -85,14 +85,16 @@ export function useWeekPlan() {
     [weekTasks, forecasts, weekDates],
   );
 
-  const strip = useMemo(() => {
-    const primary = primaryProject(projects);
-    return weatherStrip(
-      primary ? forecasts[primary.id] : undefined,
-      weekDates,
-      adjusted,
-    );
-  }, [projects, forecasts, weekDates, adjusted]);
+  // The primary site's forecast; until the company has sites, the one for where it's based.
+  const area = weather.data?.area ?? null;
+  const source = useMemo(
+    () => pickStripForecast(projects, forecasts, area),
+    [projects, forecasts, area],
+  );
+  const strip = useMemo(
+    () => weatherStrip(source.forecast, weekDates, adjusted),
+    [source, weekDates, adjusted],
+  );
 
   const propose = useCallback(
     (day: number) =>
@@ -117,6 +119,17 @@ export function useWeekPlan() {
     plants,
     adjusted,
     strip,
+    /** where the strip's forecast comes from: a site, the company's area, or nowhere yet */
+    stripSource: source.source,
+    /** the forecast behind the strip, if there is one */
+    stripForecast: source.forecast,
+    /** the city the area forecast is for, when that's what the strip shows */
+    areaCity: area?.city ?? null,
+    /**
+     * No sites and nowhere set, as the server saw it: ask where the company is based. Not taken
+     * from `projects`, which is empty while it loads or after an error.
+     */
+    needsArea: weather.data?.hasSites === false && !area,
     propose,
   };
 }

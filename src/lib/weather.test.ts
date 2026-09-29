@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 
+import { projects } from "./__fixtures__/week";
 import type { Task } from "./types";
 import {
   addDays,
@@ -10,6 +11,7 @@ import {
   overnightRainMm,
   planWeekDates,
   splitOpenMeteo,
+  pickStripForecast,
   summarizeDay,
   todayIndex,
   toSiteForecast,
@@ -352,6 +354,44 @@ describe("Open-Meteo mapping", () => {
       icon: "cloud",
       temp: null,
       note: "No forecast",
+    });
+  });
+});
+
+describe("pickStripForecast", () => {
+  const siteForecast = forecast({}, { [MON]: 18 });
+  const areaForecast = forecast({}, { [MON]: 11 });
+
+  test("with sites, the strip shows the main city's first site", () => {
+    expect(
+      pickStripForecast(
+        projects,
+        { p1: siteForecast },
+        { forecast: areaForecast },
+      ),
+    ).toEqual({ source: "site", forecast: siteForecast });
+  });
+
+  test("a site whose forecast is missing is still the site's strip, not the area's", () => {
+    expect(pickStripForecast(projects, {}, { forecast: areaForecast })).toEqual(
+      {
+        source: "site",
+        forecast: undefined,
+      },
+    );
+  });
+
+  test("with no sites, the strip shows where the company is based", () => {
+    expect(pickStripForecast([], {}, { forecast: areaForecast })).toEqual({
+      source: "area",
+      forecast: areaForecast,
+    });
+  });
+
+  test("with neither, there is nothing to show", () => {
+    expect(pickStripForecast([], {}, null)).toEqual({
+      source: "none",
+      forecast: undefined,
     });
   });
 });

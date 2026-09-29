@@ -17,27 +17,33 @@ const HEADERS = {
 
 export type Place = {
   label: string;
+  /** street and number with the town, e.g. "Valukoja 8, Tallinn" */
   address: string;
+  /** street and number alone, for a form that has its own town field */
+  street: string;
   city: string;
   lat: number;
   lng: number;
 };
 
-type NominatimPlace = {
+/** The short name a place goes by: its town, or the first part of its address. */
+export function placeName(place: Place): string {
+  return (place.city || place.address).slice(0, 200);
+}
+
+export type NominatimPlace = {
   display_name: string;
   lat: string;
   lon: string;
   address?: Record<string, string | undefined>;
 };
 
-function toPlace(p: NominatimPlace): Place {
+export function toPlace(p: NominatimPlace): Place {
   const a = p.address ?? {};
-  const street = [
-    a["road"] ?? a["pedestrian"] ?? a["footway"],
-    a["house_number"],
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const street =
+    [a["road"] ?? a["pedestrian"] ?? a["footway"], a["house_number"]]
+      .filter(Boolean)
+      .join(" ") || (p.display_name.split(",")[0] ?? "").trim();
   const city =
     a["city"] ??
     a["town"] ??
@@ -47,9 +53,8 @@ function toPlace(p: NominatimPlace): Place {
     "";
   return {
     label: p.display_name,
-    address: [street || p.display_name.split(",")[0], city]
-      .filter(Boolean)
-      .join(", "),
+    address: [street, city].filter(Boolean).join(", "),
+    street,
     city,
     lat: Number(p.lat),
     lng: Number(p.lon),

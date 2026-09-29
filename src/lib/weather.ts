@@ -330,6 +330,21 @@ export function primaryProject(projects: Project[]): Project | undefined {
 }
 
 /**
+ * Which forecast the week's strip shows: the primary site's once the company has sites (even if
+ * that forecast is missing), otherwise the one for where the company is based, otherwise none.
+ */
+export function pickStripForecast(
+  projects: Project[],
+  forecasts: ForecastByProject,
+  area: { forecast: SiteForecast } | null,
+): { source: "site" | "area" | "none"; forecast: SiteForecast | undefined } {
+  const primary = primaryProject(projects);
+  if (primary) return { source: "site", forecast: forecasts[primary.id] };
+  if (area) return { source: "area", forecast: area.forecast };
+  return { source: "none", forecast: undefined };
+}
+
+/**
  * The week's weather strip: the primary site's forecast, with each day's note
  * summarising what the rules changed across all sites. Days without a forecast
  * show no temperature rather than a made-up one.

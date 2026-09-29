@@ -1,10 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, MapPin, Search, Star } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Loader2, Star } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Field } from "@/components/forms/ClientDialog";
 import { LocationPicker } from "@/components/map";
+import { PlaceSearch } from "@/components/PlaceSearch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRefreshData } from "@/hooks/use-data";
+import { useViewer } from "@/hooks/use-viewer";
 import { addressAt, searchAddress, type Place } from "@/lib/api/geocode";
 import { saveSite, type SiteInput } from "@/lib/api/projects";
 import type { LatLng } from "@/lib/geo";
@@ -99,20 +102,23 @@ function SiteForm({
     setForm((f) => ({ ...f, [key]: value }));
   const [zonesText, setZonesText] = useState(form.zones.join(", "));
 
-  // Address search → pick a result → the pin jumps there.
-  const [query, setQuery] = useState("");
-  const search = useMutation({
-    mutationFn: (q: string) => searchAddress({ data: q }),
-    onError: (error) => toast.error(error.message),
-  });
+  // Where the map starts before there's a pin: where the company is based, if it said.
+  const companyArea = useViewer()?.member?.area ?? null;
+  // What the address field looks up: the street with its city.
+  const addressQuery = [form.address, form.city]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+
+  // Pick a match → the street and town fill in and the pin jumps there. The street alone goes
+  // in the address, since the town has its own field.
   const choosePlace = (place: Place) => {
     setForm((f) => ({
       ...f,
       location: { lat: place.lat, lng: place.lng },
-      address: place.address,
+      address: place.street,
       city: place.city || f.city,
     }));
-    search.reset();
   };
 
   // Clicking/dragging on the map → offer the nearest street address.
@@ -139,10 +145,26 @@ function SiteForm({
     });
 
   const save = useMutation({
-    mutationFn: () => {
-      if (!form.location) throw new Error("Place the site on the map first");
-      const { location, ...rest } = form;
-      return saveSite({
+    mutationFn: async (): Promise<{ placedAt: string | null }> => {
+      // No pin yet: find the typed address and use the best match; the pin can be moved later.
+      let location = form.location;
+      let placedAt: string | null = null;
+      if (!location) {
+        if (addressQuery.length < 3)
+          throw new Error(
+            "Type the address, or click the map where the site is",
+          );
+        const [best] = await searchAddress({ data: addressQuery });
+        if (!best)
+          throw new Error(
+            "Couldn't find that address; pick the spot on the map",
+          );
+        location = { lat: best.lat, lng: best.lng };
+        placedAt = best.label;
+        set("location", location);
+      }
+      const { location: _, ...rest } = form;
+      await saveSite({
         data: {
           ...rest,
           lat: location.lat,
@@ -153,13 +175,16 @@ function SiteForm({
             .filter(Boolean),
         },
       });
+      return { placedAt };
     },
-    onSuccess: async () => {
+    onSuccess: async ({ placedAt }) => {
       await refresh();
       toast.success(
         site
           ? "Site updated"
-          : `${form.name} added — weather and routes use its location`,
+          : placedAt
+            ? `${form.name} added at ${placedAt}. If the pin is off, drag it on the Sites map.`
+            : `${form.name} added — weather and routes use its location`,
       );
       onDone();
     },
@@ -181,66 +206,61 @@ function SiteForm({
           {site ? `Edit ${site.name}` : "Add work site"}
         </DialogTitle>
         <DialogDescription>
-          Search an address or click the map, then drag the pin to the exact
-          spot — the weather forecast and route planning use it.
+          Type the address and press Enter to find it, or click the map. Drag
+          the pin to the exact spot — the weather forecast and route planning
+          use it.
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-2">
-        <div className="flex gap-2">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (query.trim().length >= 3) search.mutate(query);
-              }
-            }}
-            placeholder="Search an address, e.g. Valukoja 8, Tallinn"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={query.trim().length < 3 || search.isPending}
-            onClick={() => search.mutate(query)}
+      {clients.length === 0 ? (
+        <p className="rounded-lg border border-status-attention/40 bg-status-attention/10 p-3 text-sm">
+          Every site belongs to a client.{" "}
+          <Link
+            to="/clients"
+            className="font-medium text-primary hover:underline"
           >
-            {search.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Search className="size-4" />
-            )}
-            Find
-          </Button>
-        </div>
-        {search.data ? (
-          <div className="rounded-lg border">
-            {search.data.length === 0 ? (
-              <p className="p-3 text-sm text-muted-foreground">
-                No matches — try adding the city.
-              </p>
-            ) : (
-              search.data.map((place) => (
-                <button
-                  key={`${place.lat},${place.lng}`}
-                  type="button"
-                  onClick={() => choosePlace(place)}
-                  className="flex w-full items-start gap-2 border-b p-2.5 text-left text-sm last:border-b-0 hover:bg-muted"
-                >
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
-                  <span className="line-clamp-2">{place.label}</span>
-                </button>
-              ))
-            )}
-          </div>
-        ) : null}
+            Add a client first
+          </Link>
+          , then come back to add the site.
+        </p>
+      ) : null}
 
-        <LocationPicker value={form.location} onChange={pick} height={280} />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="col-span-2">
+          <Field label="Address">
+            <PlaceSearch
+              label="Address"
+              value={form.address}
+              onValueChange={(v) => set("address", v)}
+              query={addressQuery}
+              onPick={choosePlace}
+              placeholder="e.g. Valukoja 8"
+              required
+            />
+          </Field>
+        </div>
+        <Field label="City">
+          <Input
+            required
+            value={form.city}
+            onChange={(e) => set("city", e.target.value)}
+            placeholder="e.g. Tallinn"
+          />
+        </Field>
+      </div>
+
+      <div className="grid gap-2">
+        <LocationPicker
+          value={form.location}
+          onChange={pick}
+          fallbackCenter={companyArea}
+          height={280}
+        />
         <p className="text-xs text-muted-foreground">
           {form.location
             ? `Pinned at ${form.location.lat.toFixed(5)}, ${form.location.lng.toFixed(5)}`
-            : "Not placed yet — click the map where the site is."}
-          {suggestion && suggestion.address !== form.address ? (
+            : "Not placed yet: find the address, or click the map. Saving without a pin looks the address up."}
+          {suggestion && suggestion.street !== form.address ? (
             <>
               {" "}
               · Nearest address {suggestion.address}{" "}
@@ -250,7 +270,7 @@ function SiteForm({
                 onClick={() =>
                   setForm((f) => ({
                     ...f,
-                    address: suggestion.address,
+                    address: suggestion.street,
                     city: suggestion.city || f.city,
                   }))
                 }
@@ -267,6 +287,7 @@ function SiteForm({
           <Select
             value={form.clientId}
             onValueChange={(v) => set("clientId", v)}
+            disabled={clients.length === 0}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pick a client" />
@@ -286,24 +307,6 @@ function SiteForm({
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
             placeholder="e.g. Kalamaja — courtyard"
-          />
-        </Field>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2">
-          <Field label="Address">
-            <Input
-              required
-              value={form.address}
-              onChange={(e) => set("address", e.target.value)}
-            />
-          </Field>
-        </div>
-        <Field label="City">
-          <Input
-            required
-            value={form.city}
-            onChange={(e) => set("city", e.target.value)}
           />
         </Field>
       </div>
@@ -413,12 +416,22 @@ function SiteForm({
       </Field>
 
       <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onDone}>
+        {/* A save that's looking up the address can't be called off halfway. */}
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onDone}
+          disabled={save.isPending}
+        >
           Cancel
         </Button>
         <Button
           type="submit"
-          disabled={save.isPending || !form.location || !form.clientId}
+          disabled={
+            save.isPending ||
+            !form.clientId ||
+            (!form.location && addressQuery.length < 3)
+          }
         >
           {save.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
           {site ? "Save changes" : "Add site"}

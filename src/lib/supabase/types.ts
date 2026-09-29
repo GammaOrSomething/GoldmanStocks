@@ -32,6 +32,11 @@ export type Database = {
           name: string;
           timezone: string;
           plant_seq: number;
+          /** where the company is based: a label, and the forecast and map spot until it has sites */
+          city: string;
+          /** set together with `lng`, or both null */
+          lat: number | null;
+          lng: number | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -41,6 +46,9 @@ export type Database = {
           name: string;
           timezone?: string;
           plant_seq?: number;
+          city?: string;
+          lat?: number | null;
+          lng?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -48,6 +56,9 @@ export type Database = {
         Update: {
           name?: string;
           timezone?: string;
+          city?: string;
+          lat?: number | null;
+          lng?: number | null;
         };
         Relationships: [];
       };

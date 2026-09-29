@@ -31,6 +31,7 @@ const boss: Member = {
   workerId: BOSS,
   companyId: COMPANY,
   companyName: "Alpha Gardens",
+  area: null,
   role: "boss",
   name: "Anna Boss",
 };
