@@ -23,9 +23,9 @@ _Updated 29 Sep 2026._
 
 **Next: staging.** Only you sign up; public signup waits for the CAPTCHA. The code is on GitHub as `claude-101`, never `main`, so Lovable and the demo are untouched. CI runs on that branch, including the database tests on a real Supabase.
 
-1. **You:** create the Supabase project in `eu-west-2` (free is fine for staging). Keep the database password. Add a second address of yours to the Supabase organisation: the built-in email only reaches members, and you'll need it for the test worker.
-2. **Me** (after you run `! bunx supabase login`): `bunx supabase link --project-ref <ref>`, `bunx supabase db push --dry-run`, then `db push`.
-   - **You**, in the SQL editor: `select rolbypassrls from pg_roles where rolname = 'postgres'` must be `true` (`complete_task` needs it).
+1. ~~Create the Supabase project~~ **Done:** `GoldmanStocks-production`, ref `wjhrdbrhoysdtppqaapm`, in `eu-west-1` (Ireland, not London). Vercel's function moved to `dub1` (Dublin) to sit next to it. The demo stays on its own project; reusing it would have meant wiping it and breaking `goldman-stocks.vercel.app` and Lovable's preview.
+   - **You, still:** add a second address of yours to _this_ project's organisation (it's a different one from the demo's). The built-in email only reaches members, and you'll need it for the test worker.
+2. ~~Schema~~ **Done** (29 Sep 2026; see [Staging](#staging-on-the-production-project)).
 3. **You, Authentication settings:**
    - Site URL = the branch's stable Vercel address, `<project>-git-claude-101-<team>.vercel.app`. The email links are built from it.
    - Redirect URLs: that address and `http://localhost:8080/**`.
@@ -489,6 +489,26 @@ Also fixed:
   - which sign-in method names Supabase records for invite and reset links, which `/auth/set-password` relies on;
   - whether its email templates escape data, before the invite email names the company.
 
+### Staging on the production project
+
+**29 Sep 2026.** The schema is live on `GoldmanStocks-production` (`wjhrdbrhoysdtppqaapm`, `eu-west-1`).
+
+- **Applied:** `supabase link`, then a dry run that listed exactly the six files in `supabase/migrations/` and no seed, then `db push`. The project was empty beforehand: no tables, no migration history. The CLI connected through its temporary login role, so the database password wasn't needed.
+- **Checked on the live database:**
+  - `postgres` has BYPASSRLS, which `complete_task` needs;
+  - all 14 public tables have row-level security on;
+  - the `task-photos` bucket is private;
+  - the four daily allowances are in place: `ai_plan` 50, `ai_outreach` 50, `geocode` 300, `invite` 20.
+- **Types:** `supabase gen types --linked` against the hand-written `src/lib/supabase/types.ts`. Every table's rows, every enum and every function's return type match. The only differences are deliberate narrowings in the hand-written file:
+  - `plants.code` is optional on insert, since a trigger assigns it;
+  - `task_photos` can't be updated;
+  - `complete_task` takes null GPS, and `set_project_crew` takes a crew without a lead;
+  - `bump_usage` lists its four kinds.
+- **Supabase's advisor:** no errors. Six warnings, all "signed-in users can execute a SECURITY DEFINER function", for `bump_usage`, `complete_task`, `create_company`, `my_invitation`, `set_task_status` and `update_my_profile`. That's intended: they're the narrow ways members write, each checks the caller, and the database tests cover them. `login_for_email` isn't on the list, since it's server-only.
+- **Region:** the project is in Ireland rather than London, so `vercel.json` now runs the function in `dub1` (Dublin). `main`'s `vercel.json`, which the demo builds from, is unchanged.
+
+**Next:** your auth settings and templates, your Vercel project, then the click-through. See [Pick up here](#-pick-up-here-next-session).
+
 ---
 
 ## Your checklist (things only you can do)
@@ -513,7 +533,7 @@ Also fixed:
 
 - [ ] Install Docker Desktop, or tell me to keep using the no-Docker test setup. D1 needs a local Supabase to try signup and the worker flow end to end, and to regenerate the database types.
 
-- [ ] Create the production Supabase project in `eu-west-2`, the same region as today.
+- [x] Create the production Supabase project. It's in `eu-west-1`, so Vercel runs in `dub1`.
 - [ ] Set up custom email sending (SMTP), e.g. Resend, Postmark or SES, with SPF/DKIM on your domain. **Required:** Supabase's built-in sender only emails your own team members, so signup confirmations and worker invites won't arrive without it.
 - [ ] Auth settings:
   - Site URL = the production domain.
