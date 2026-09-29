@@ -478,6 +478,9 @@ Also fixed:
 
 - 230 unit tests, typecheck, lint and build pass.
 - 101 database checks (15 new: acceptance, the guards, `my_invitation`, `login_for_email`, lowercase emails, the allowances).
+- **First CI run on `claude-101` (29 Sep 2026):**
+  - All 101 database checks pass on a real local Supabase, the first time they've run outside the stand-in.
+  - 4 report tests failed: CI's newer ICU data writes en-GB September as "Sept", so the report's date column would have changed with the server's runtime. `dayLabel` now builds "Mon 07 Sep" itself, and a test covers September and December.
 - **Built server run locally:**
   - `/forgot-password`, `/auth/set-password` and an invite `/auth/confirm` link answer 200 when signed out.
   - `/join` and `/workers` redirect to login.
