@@ -89,14 +89,30 @@ export function signedUrlMap(
   return urls;
 }
 
-/** "Mon 07 Sep" */
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/**
+ * "Mon 07 Sep". Built by hand rather than with Intl: ICU versions disagree on en-GB's
+ * September ("Sep" or "Sept"), so the report would change with the server's runtime.
+ */
 export function dayLabel(date: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T12:00:00Z`));
+  const d = new Date(`${date}T12:00:00Z`);
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${WEEKDAYS[d.getUTCDay()]} ${day} ${MONTHS[d.getUTCMonth()]}`;
 }
 
 /** An OpenStreetMap pin for where the photo was taken, when the phone recorded it. */

@@ -257,6 +257,12 @@ describe("the date column", () => {
     expect(dayLabel("2026-09-20")).toBe("Sun 20 Sep");
   });
 
+  test("uses three-letter months on every runtime, the last one included", () => {
+    // Newer ICU data writes en-GB September as "Sept"; the label must not follow it.
+    expect(dayLabel("2026-09-30")).toBe("Wed 30 Sep");
+    expect(dayLabel("2026-12-31")).toBe("Thu 31 Dec");
+  });
+
   test("is not shifted by the host's time zone", () => {
     // Formatted at UTC noon, so a machine in UTC-5 cannot render this as the 6th.
     expect(dayLabel("2026-09-07").startsWith("Mon")).toBe(true);
