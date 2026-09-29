@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    # Feature branches and the staging branch too, so the database tests run on a real Supabase before any PR.
+    branches: [main, "feat/**", "claude-101"]
 
 permissions:
   contents: read
