@@ -106,8 +106,8 @@ No `bun` installed? `npx bun@1.4.2 <command>` works the same.
 - **Bug fixed:** `Badge` now renders a `<span>`. As a `<div>` inside a `<p>` it broke hydration.
 
 ### 4. Vercel
-- `vercel.json` sets the install and build commands, no framework preset, and region `lhr1` (next to Supabase
-  `eu-west-2`).
+- `vercel.json` sets the install and build commands, no framework preset, and region `dub1` (next to the production
+  Supabase project in `eu-west-1`).
 - **How the target is chosen:** Nitro detects Vercel's build environment and outputs `.vercel/output` (Build Output
   API, Node 24). Lovable's own builds still target Cloudflare.
 - **The logo is bundled** (`src/assets/goldman-stocks-logo.png`). The Lovable-hosted `/__l5e/` asset 404s on

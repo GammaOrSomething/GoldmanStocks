@@ -3,5 +3,5 @@
   "framework": null,
   "installCommand": "bun install",
   "buildCommand": "bun run build",
-  "regions": ["lhr1"]
+  "regions": ["dub1"]
 }

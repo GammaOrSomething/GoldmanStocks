@@ -30,9 +30,10 @@ unaffected and still target Cloudflare.
 
 ## Notes
 
-- **Region:** the function runs in `lhr1` (London), next to the Supabase project
-  (`eu-west-2`). Each page makes several database calls, so keeping them in the same region
-  matters. Change `regions` in `vercel.json` if the database moves.
+- **Region:** the function runs in `dub1` (Dublin), next to the production Supabase project
+  (`eu-west-1`). Each page makes several database calls, so keeping them in the same region
+  matters. Change `regions` in `vercel.json` if the database moves. (The demo project is in
+  `eu-west-2`, and `main`'s `vercel.json` still says `lhr1`.)
 - **Changing a `VITE_` variable needs a redeploy** — they're baked in at build time.
 - **Maps:** street tiles come from OpenStreetMap and satellite imagery from Esri, both loaded
   by the browser. They're free with attribution (shown on the map) for modest traffic; for
