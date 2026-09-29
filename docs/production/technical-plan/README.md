@@ -46,10 +46,10 @@ The app is a hackathon demo. It has no login: every visitor is silently signed i
 | B: real login                        | **Done**, on `feat/real-login`, stacked on A2                                                                   |
 | C: new schema                        | **Done**, on `feat/production-schema`, stacked on B                                                             |
 | D1: cut-over                         | **Done**, on `feat/cut-over`, stacked on C                                                                      |
-| D2: invites and password reset       | **Next.** Branch `feat/worker-invites`, stacked on D1                                                           |
-| E: hardening and docs                | Not started                                                                                                     |
+| D2: invites and password reset       | **Done**, on `feat/worker-invites`, stacked on D1; pushed to GitHub as `claude-101`                             |
+| E: hardening and docs                | **Next,** after staging. Continues on `claude-101`                                                              |
 
-- **Branches stay local** (user's choice). No pushes or PRs until the user asks. Each PR gets its own stacked branch and local commits.
+- **Only `claude-101` is pushed** (user's choice, 29 Sep 2026). It's the staging branch; nothing goes to `main` until the user decides. Earlier branches stay local.
 - **Document as we go.** New living doc `docs/production/README.md`; the name gets past the markdown-write hook. It's linked from the root README and updated with every PR:
   1. The goal and the decisions (from Context).
   2. A progress log: one section per PR, with what changed, why, where, verification results, and review findings with how they were handled.

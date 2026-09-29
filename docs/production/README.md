@@ -4,13 +4,13 @@ This is the running record of turning the hackathon demo into a real product: wh
 each change did, what you need to do by hand, and what comes next. It is updated with every PR.
 
 - **Started:** 23 Sep 2026
-- **Current step:** PR D2, worker invites and password reset (A1–D1 are done). **Start at [Pick up here](#-pick-up-here-next-session).**
+- **Current step:** staging on the production Supabase project (A1–D2 are done), then PR E. **Start at [Pick up here](#-pick-up-here-next-session).**
 
 ## ▶ Pick up here (next session)
 
-_Updated 27 Sep 2026._
+_Updated 29 Sep 2026._
 
-**Where the code is.** Everything is on local branches, not pushed; that's your choice until you say otherwise. Each branch is stacked on the one before, so check out the last one to get everything:
+**Where the code is.** Each branch is stacked on the one before. Only the last one is pushed: to GitHub as **`claude-101`** (your name for it; git allows no spaces), never to `main`. Work from here on continues on `claude-101`.
 
 | Branch                   | Contains      | State                                                                |
 | ------------------------ | ------------- | -------------------------------------------------------------------- |
@@ -18,23 +18,57 @@ _Updated 27 Sep 2026._
 | `chore/remove-dead-code` | A2 + this doc | done                                                                 |
 | `feat/real-login`        | B             | done, reviewed, fixes in                                             |
 | `feat/production-schema` | C             | done; security review fixed and re-reviewed; 86 database checks pass |
-| `feat/cut-over`          | D1            | **done**, reviewed; all checks pass                                  |
+| `feat/cut-over`          | D1            | done, reviewed                                                       |
+| `feat/worker-invites`    | D2            | **done**, reviewed; all checks pass; pushed as `claude-101`          |
 
-**To start D2** (`git checkout feat/cut-over && git checkout -b feat/worker-invites`):
+**Next: staging.** Only you sign up; public signup waits for the CAPTCHA. The code is on GitHub as `claude-101`, never `main`, so Lovable and the demo are untouched. CI runs on that branch, including the database tests on a real Supabase.
 
-1. **The plan:** [PR D2](technical-plan/README.md#pr-d2-worker-invites-and-password-reset). In short:
-   - invite, resend and remove access on `/workers`, through a new server-only `src/lib/server/invites.ts`;
-   - an email field in `WorkerDialog`;
-   - `/auth/set-password` and `/forgot-password`, with `/auth/confirm` handling invite and recovery links.
-2. **Carried into D2:**
-   - **Remove access** must clear `workers.user_id`, not just archive the worker.
-   - **Invite and reset links** point to `/auth/set-password`. Until D2 adds it, they end on a missing page.
-   - `/workers` already shows each worker's email and "Can sign in" / "Invited <date>" / "No login"; D2 adds the buttons next to it.
-3. **Still open, for E or later:**
-   - **Check on real Supabase (CI):** that `postgres` has BYPASSRLS, which `complete_task` needs to read `storage.objects`; set `secure_password_change = true` in `config.toml`.
-   - **Office screens don't hide boss-only buttons from workers yet.** Workers are redirected to `/mobile` anyway, and the server refuses them.
-   - **"Skipped" carries over from week to week** on weekly tasks (see [D1: worker app, office and docs](#d1-worker-app-office-and-docs)).
-4. **Then:** review, update this log, and commit. E follows; see [Next steps](#next-steps).
+1. **You:** create the Supabase project in `eu-west-2` (free is fine for staging). Keep the database password. Add a second address of yours to the Supabase organisation: the built-in email only reaches members, and you'll need it for the test worker.
+2. **Me** (after you run `! bunx supabase login`): `bunx supabase link --project-ref <ref>`, `bunx supabase db push --dry-run`, then `db push`.
+   - **You**, in the SQL editor: `select rolbypassrls from pg_roles where rolname = 'postgres'` must be `true` (`complete_task` needs it).
+3. **You, Authentication settings:**
+   - Site URL = the branch's stable Vercel address, `<project>-git-claude-101-<team>.vercel.app`. The email links are built from it.
+   - Redirect URLs: that address and `http://localhost:8080/**`.
+   - Confirm email on; minimum password 10 with letters and digits; secure password change on.
+   - Paste the three templates from `supabase/templates/`.
+4. **You, Vercel:** your own Vercel project. The existing `goldman-stocks.vercel.app` is on an account you can't reach, so leave it alone; it keeps showing the demo.
+   - Import this repo (Framework "Other", no output directory; `vercel.json` sets the rest). That needs Vercel's GitHub app on `mrkikuts/GoldmanStocks`, which only the repo's owner can install. If you can't, I deploy from this machine with `bunx vercel link` and `bunx vercel deploy` instead.
+   - Preview variables scoped to the `claude-101` branch:
+     - `VITE_SUPABASE_URL`;
+     - `VITE_SUPABASE_ANON_KEY` (the publishable key);
+     - `SUPABASE_SERVICE_ROLE_KEY` (the secret key);
+     - a **new** `OPENAI_API_KEY`.
+   - Then redeploy the branch.
+5. **Together, on the preview** (laptop plus phone):
+   1. Sign up, confirm, then onboarding.
+   2. A client, a site, and a worker with your second address.
+   3. Invite them; on the phone, open the link, set a password, then join.
+   4. The worker finishes a job with a photo.
+   5. Reset a password.
+   6. Resend, then cancel an invitation.
+   7. Remove access, including for a worker with photos.
+   8. The frame headers (`curl -sI`).
+   - Also confirm the sign-in method names for link sessions, and whether the email templates escape data.
+
+**Before public signup:**
+
+- **Email:** Supabase's built-in sender won't do. There's no domain, so: **Gmail SMTP with an app password** (needs 2-step verification on the Google account; about 500 a day; `smtp.gmail.com`, port 587). Brevo (300 a day) is the fallback. Resend needs a domain.
+- **CAPTCHA:** Cloudflare Turnstile (free, works on `*.vercel.app`), then step E builds it into signup, login and forgot-password.
+- **Before charging:** Vercel Pro (Hobby is non-commercial), Supabase Pro (backups, no pausing) and Open-Meteo's commercial plan.
+- **Launch without merging:** in your Vercel project, set Production Branch = `claude-101`, then the Production variables, the Site URL and redirect URLs, and the Turnstile hostname for the production address. `main` feeds Lovable and probably the `goldman-stocks.vercel.app` demo, and after the cut-over it no longer works against the demo database, so merging to `main` is a separate decision. Tag `96ba21a` as `demo-final` first.
+
+**Then E** ([plan](technical-plan/README.md#pr-e-hardening-and-docs)):
+
+- Playwright end-to-end tests (need Docker);
+- the CAPTCHA;
+- the docs rewrite;
+- the company's own time zone.
+
+Still open from before:
+
+- office screens don't hide boss-only buttons from workers (they're redirected anyway);
+- "Skipped" carries over on weekly tasks;
+- orphaned plant photos.
 
 **Checks to run:**
 
@@ -85,7 +119,7 @@ signed-in user read and write every row. The data came from a 700-line mock file
 | B    | Real login (still on the demo database)                           | Done        | `feat/real-login` (on top of A2)        |
 | C    | New database schema, Supabase CLI, security tests                 | Done        | `feat/production-schema` (on top of B)  |
 | D1   | Switch the app to the new project: signup, roles, company scoping | Done        | `feat/cut-over` (on top of C)           |
-| D2   | Worker invites and password reset                                 | Not started |                                         |
+| D2   | Worker invites and password reset                                 | Done        | `feat/worker-invites` (on top of D1)    |
 | E    | End-to-end tests, CAPTCHA, final docs                             | Not started |                                         |
 
 ---
@@ -356,6 +390,102 @@ Also fixed:
 - 187 unit tests (5 new), typecheck, lint and build pass, and the 86 database checks.
 - No end-to-end run in a browser: the new schema isn't on any live project, and this machine has no Docker.
 
+### D2: worker invites and password reset
+
+**Why:** after D1, a boss could add workers, but nobody could give them a login, and the invite and reset emails pointed at a page that didn't exist.
+
+**Decisions:**
+
+- **"Remove access" deletes the login only.** The worker stays in the crew with their jobs and history, and can be invited again. Taking someone off the crew entirely is a separate feature, for later.
+- **Being invited is not agreeing to join** (after the security review, below). The invited person answers on `/join`; until they press Join, their login sees nothing of the company.
+
+**Database** (new migrations; the baseline is untouched):
+
+- `20260927000001_invites.sql`:
+  - **`workers.accepted_at`.** The three membership checks every policy uses (`private.company_id()`, `worker_id()`, `is_boss()`) count a login only once it has accepted. Only the server may record an acceptance; a boss can't do it through the API. `create_company` marks the new boss as joined, and the last-boss rule counts only bosses who have joined.
+  - **`my_invitation()`:** the company waiting for the caller's answer, for `/join`.
+  - **`login_for_email()`:** the server's way to find the login that holds an address. It's closed to everyone but the server, since it would reveal which addresses have accounts.
+  - **An `invite` allowance of 20 a day per company.** Invitations send email from our domain to any address a boss types, so they're metered like the AI features. A resend counts.
+  - Worker emails are stored lowercased and trimmed.
+- `20260927000002_geocode_limit.sql`: a `geocode` allowance (see the security sweep below).
+- `config.toml`: `secure_password_change = true`.
+
+**Invitations** (`src/lib/server/invites.ts`, the one place besides the weather cache that uses the service-role key):
+
+- Every boss action reads the worker through the boss's own session, so row-level security proves it's their company, and spends the allowance against that company. The service role only sends the email and finds, deletes, links, unlinks or accepts logins, and its writes name the boss's company too.
+- **Invite:**
+  - Refuses a worker without an email, or one already invited.
+  - Refuses an address that is confirmed, or linked to any company: one account belongs to one company.
+  - An address someone signed up with but never confirmed is deleted first, so no password its creator chose survives.
+  - Supabase emails the invitation, and the login is linked to the worker, but not accepted.
+  - The allowance is spent before the account lookup, since that reveals whether an address has an account.
+- **Answering (`/join`):** "Join <Company>?" with **Join** and **This isn't me**. Both run on the server with the person's verified session. Declining unlinks them; they can then set up their own company. The guard sends a person with an unanswered invitation to `/join` and nowhere else.
+- **Resend:** only until the link has been opened; after that, they sign in and accept.
+- **Remove access** (also cancels an invitation):
+  - Deletes the login and clears `workers.user_id`, as D1's notes required.
+  - It works at once: every request looks the login up again, so even a still-valid token sees nothing.
+  - Never your own, and never a boss's, so a company can't lock itself out.
+- **Workers:**
+  - A worker has an optional email, unique within the company. It's read-only in the dialog once it's someone's login; the database refuses a change anyway.
+  - `/workers` shows each person's email and state ("No login", "Invited <date>", "Can sign in"), with the matching buttons (`src/components/WorkerAccess.tsx`). Removing access asks first.
+- **The invite email doesn't name the company yet.** Bosses choose company names, and it isn't confirmed that Supabase's email templates escape them. The name is sent with the invitation for later; `/join` shows it before anyone joins.
+
+**Passwords:**
+
+- **`/forgot-password`:**
+  - Emails a reset link from the browser, as sign-in does, so Supabase's limits apply per person, not to our server's one address.
+  - Answers the same whether or not the email has an account, including when Supabase's per-address email limit is hit.
+  - Linked from the login page.
+- **`/auth/confirm`** decides where to go from the link's type (invite and reset go to `/auth/set-password`, a signup confirmation goes to `/onboarding`), never from the link itself.
+- **`/auth/set-password`:**
+  - Only for a session an invite or reset link started in the last hour. Anyone else is offered to sign out and get a reset link, so a signed-in phone left lying around can't have its password changed.
+  - Then the guard sends them on: to `/join` if invited, otherwise home.
+  - Opened without a session, it explains the link has expired and offers a new one.
+- **Access rules:** `/forgot-password` is public. Like login and signup, it sends a signed-in member home and is never a redirect target.
+
+**Security review of D2** (a security reviewer agent, after the first version):
+
+- **HIGH, fixed:** someone could sign up with a victim's email, never confirm it, and keep a working password once the victim's real boss invited that address and the victim accepted. Unfinished signups are now deleted before inviting.
+- **MEDIUM, fixed:** the first version linked a login when the invitation was sent, so any boss could invite a stranger's address and the stranger would land in that company the first time they signed up or reset their password. Hence `/join` and `accepted_at`.
+- **LOW, fixed:**
+  - Races between two tabs or two bosses: every update now checks the row is still as it was read, and a login left over by a failed step is deleted.
+  - Forgot-password leaked which addresses have accounts through the per-address rate limit.
+  - A crafted email link could choose where the person went after it.
+  - Any recent session could set a new password without the old one.
+  - Some errors were wrong, or showed raw database messages.
+- **Noted, not fixed:**
+  - An archived worker keeps their login. It matters once archiving exists in the app.
+  - A confirmed account with no company can't be invited (Supabase refuses the address); the person has to be asked to use another one.
+  - Links to photos signed before access was removed work until they expire (1 hour, 2 for uploads).
+
+**Security sweep of the whole app** (27 Sep 2026):
+
+- **Checked and sound:**
+  - no secrets in the repo or its history, and `.env` is git-ignored;
+  - every server function (40) checks the caller before reading or writing; the AI, report, offer, address-search and invite ones are boss-only;
+  - CSRF protection and the response headers;
+  - no user text is written into raw HTML;
+  - calls to other services go to fixed hosts;
+  - error reports never include email-link tokens;
+  - signed photo links expire after an hour.
+- **Fixed:**
+  - **MEDIUM: address search had no limit.** With open signup, one company could loop it and get our server banned by Nominatim, breaking address search for everyone. It now spends a `geocode` allowance of 300 a day per company.
+  - **LOW–MEDIUM: one company could use up the shared weather quota.** A page load now fetches at most 50 uncached sites.
+  - **LOW: six dependency advisories**, all in lint and build tools. `bun audit` is clean.
+- **Deferred:** a script Content-Security-Policy (see [Known limitations](#known-limitations)).
+
+**Verified:**
+
+- 230 unit tests, typecheck, lint and build pass.
+- 101 database checks (15 new: acceptance, the guards, `my_invitation`, `login_for_email`, lowercase emails, the allowances).
+- **Built server run locally:**
+  - `/forgot-password`, `/auth/set-password` and an invite `/auth/confirm` link answer 200 when signed out.
+  - `/join` and `/workers` redirect to login.
+  - Neither the invite code nor the service-role key is in the browser bundle.
+- **Not tried for real yet:** an invitation email arriving, being accepted, a resend, and a reset. That's the staging run. Two things to confirm there:
+  - which sign-in method names Supabase records for invite and reset links, which `/auth/set-password` relies on;
+  - whether its email templates escape data, before the invite email names the company.
+
 ---
 
 ## Your checklist (things only you can do)
@@ -386,9 +516,12 @@ Also fixed:
   - Site URL = the production domain.
   - Redirect URLs: production, the Vercel preview wildcard, and `http://localhost:8080/**`.
   - Email confirmation on.
-  - Minimum password length 10.
+  - Minimum password length 10, with letters and digits.
+  - **Secure password change** on (Authentication → Providers → Email). It matches `config.toml`; the app only sets a password right after an emailed link.
   - Rate limits (Authentication → Rate Limits): keep sign-ups and emails per hour modest.
-- [ ] **Create a Cloudflare Turnstile site** for the production domain and give me the site key; the secret key goes into Supabase (Authentication → Attack Protection). The signup CAPTCHA can't go live without them.
+- [ ] Upload the three email templates from `supabase/templates/` (Authentication → Emails): confirm signup, invite user and reset password. Without them, invite and reset links skip the confirm step and don't reach `/auth/set-password`.
+- [ ] **Create a Cloudflare Turnstile site** for the production domain and give me the site key; the secret key goes into Supabase (Authentication → Attack Protection). The CAPTCHA (signup, sign-in and password reset) can't go live without them.
+- [ ] **Weather for a paid product:** Open-Meteo's free API is for non-commercial use. Before charging customers, take their commercial plan and give me the API key. The app already caches forecasts and fetches at most 50 sites per load.
 - [ ] After the first Vercel preview deploy, check the headers: `curl -sI https://<preview>/login` should show `content-security-policy: frame-ancestors 'self'`.
 - [ ] Tag the last pre-D1 commit `demo-final`. Its Vercel deployment stays up as the live demo.
 
@@ -396,14 +529,14 @@ Also fixed:
 
 ## Next steps
 
-1. **D2: worker invites and password reset.**
-2. **E: end-to-end tests, the signup CAPTCHA, and final docs.**
+1. **E: end-to-end tests, the CAPTCHA, and final docs.**
 
 The full technical plan (schema, access rules, file-by-file changes, risks) is in
 [technical-plan/README.md](technical-plan/README.md). This file tracks what actually happened.
 
 ## Known limitations
 
+- **No script Content-Security-Policy.** React's escaping is the only defence against injected scripts, and Supabase keeps the session in cookies that JavaScript can read (its browser client needs them). A strict CSP needs nonce support from the framework and an allow-list for the map tiles; it belongs with E.
 - **Orphaned photos:** any member can upload plant pictures (up to 10 MB each) that never end up on a plant, and nothing cleans them up. A clean-up job belongs with E.
 - **Saving a client or site isn't atomic:** if saving its terms or crew fails after a new client or site was inserted, the new row stays, and pressing Save again makes a duplicate. The fix is one database function per save.
 - **Updates to a missing id succeed silently:** `saveClient`, `saveWorker` and `moveSite` report success when the id matches nothing (another company's row, say). Nothing is changed, but the caller isn't told.
