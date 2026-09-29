@@ -507,7 +507,68 @@ Also fixed:
 - **Supabase's advisor:** no errors. Six warnings, all "signed-in users can execute a SECURITY DEFINER function", for `bump_usage`, `complete_task`, `create_company`, `my_invitation`, `set_task_status` and `update_my_profile`. That's intended: they're the narrow ways members write, each checks the caller, and the database tests cover them. `login_for_email` isn't on the list, since it's server-only.
 - **Region:** the project is in Ireland rather than London, so `vercel.json` now runs the function in `dub1` (Dublin). `main`'s `vercel.json`, which the demo builds from, is unchanged.
 
-**Next:** your auth settings and templates, your Vercel project, then the click-through. See [Pick up here](#-pick-up-here-next-session).
+**Then (29 Sep):**
+
+- **Vercel:** your own project, `goldman-stocks-production`, imports your fork `GammaOrSomething/GoldmanStocks`, with Production Branch = `claude-101`. Live at `https://goldman-stocks-production.vercel.app`.
+  - Headers are right, private pages redirect to login, and the server runs in `dub1`.
+  - The browser code points at the new project and holds no secret key.
+  - `claude-101` is pushed to both `origin` (`mrkikuts`) and `fork`.
+- **Supabase:** Site URL and redirect URLs set to that address, email settings and templates in.
+- **Why Production and not a preview:** one stable address for the Site URL and later the Turnstile hostname, and no Vercel sign-in wall on the phone.
+  - It's safe before the CAPTCHA only while Supabase's built-in sender is in use, since that reaches org members only. **Don't set up SMTP until the CAPTCHA ships.**
+
+### Staging feedback (29 Sep 2026)
+
+You signed up and onboarded, then reported three problems.
+
+- **"I can't see the weather forecast."** Forecasts are per site. A new company has none, so `loadForecasts` threw "Weather unavailable" and the card showed nothing useful.
+  - **Fix:** companies have a home area, set in `20260929000001_company_area.sql`:
+    - `city`, plus `lat` and `lng`, set together or not at all;
+    - only the company's boss can change them, through the existing update policy plus a column grant.
+  - `getWeekWeather` → `loadWeekWeather`:
+    - with sites, their forecasts;
+    - with no sites, the forecast for the area, in the same single request;
+    - with neither, an empty week rather than an error.
+  - **Dashboard:** "Forecast for {town} · Change". With neither a site nor a town, the card asks "Where's your company based?" with a town search, or links to adding a site.
+  - **Onboarding** asks for the town (optional) and looks it up once the company exists.
+  - **Maps** start at the area instead of Tallinn when there's no pin.
+- **"I have to place the dot by hand instead of writing the address."** The form's search box sat apart from its Address field, and typing the address there never moved the pin.
+  - **Fix:** the Address field is the search: Enter or **Find** → matches → pick one, and the pin moves (`src/components/PlaceSearch.tsx`).
+  - Saving without a pin looks up "address, city" and uses the best match. The toast says where, and the pin can be dragged on the Sites map.
+  - With no clients, the form now says to add one first, instead of a silently disabled button.
+  - Still no search-as-you-type: Nominatim forbids autocomplete, and each search spends the `geocode` allowance.
+- **"The AI plan says Review with nothing to generate."** The tile said "Review / Awaiting approval" whenever the day wasn't approved.
+  - Worse, **Approve today's plan** was enabled with no jobs, and `explainPlan` spent an `ai_plan` use and an OpenAI call on an empty plan.
+  - **Fix:** with no jobs today, the tile reads "— / No jobs today" and the button "Nothing to approve", disabled.
+  - The server also answers an empty plan with a fixed sentence before spending anything (`isEmptyPlan`).
+
+**Review** (a code-reviewer pass): no security problems. Fixed:
+
+- **HIGH:** adding the first site left the dashboard on "No forecast" for up to 15 minutes, because nothing refreshed the forecast. The week's forecast is now one of the shared data keys (`dataKeys.weekWeather`), so every site save or move refreshes it.
+- **MEDIUM:**
+  - "Where's your company based?" could flash for a company that has sites, while its site list was still loading. The server now reports `hasSites`, and the card asks only when the server saw neither sites nor an area.
+  - The tile and the explanation used different tests for "there's a plan". Both now use `hasAssignedWork` (`src/lib/planner.ts`). A job nobody can be assigned reads "Nothing assigned", not "Review".
+  - The weather card moved to `src/components/dashboard/WeatherCard.tsx`, bringing `src/routes/index.tsx` under 800 lines.
+  - Tests for the promises themselves:
+    - an empty plan spends no allowance and asks no model (`explainPlanOrSkip`);
+    - a refused area update is an error (`updateCompanyArea`);
+    - another company's boss can't move where A is based.
+- **LOW:**
+  - Cancel is disabled while a save looks up the address.
+  - Search results are dropped when the text changes, and searching the same text again spends nothing.
+  - A picked match fills the street alone, so the town isn't repeated ("Valukoja 8, Tallinn, Tallinn"). Matches now carry a separate `street` field.
+  - The address search fields have accessible names.
+- **Not changed:**
+  - The saved-without-a-pin lookup takes Nominatim's best match from anywhere; the toast names the place, and the pin can be moved.
+  - `saveCompanyArea` asks `requireBoss` and then `requireMember`. The second is cached for the request, so it doesn't look anything up again.
+
+**Verified:**
+
+- 258 unit tests (27 new), typecheck, lint and both builds;
+- 105 database checks (4 new, and the worker check now covers the company's area);
+- the dry run on production lists only `20260929000001_company_area`.
+
+**Next:** the invite click-through on your phone. See [Pick up here](#-pick-up-here-next-session).
 
 ---
 
