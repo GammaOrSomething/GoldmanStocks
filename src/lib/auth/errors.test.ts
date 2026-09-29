@@ -69,12 +69,12 @@ describe("signInErrorMessage", () => {
 });
 
 describe("resetPasswordErrorMessage", () => {
-  test("only an outage or a rate limit is worth saying", () => {
+  test("only an outage or too many requests from this device is worth saying", () => {
     expect(
       resetPasswordErrorMessage(new AuthRetryableFetchError("offline", 0)),
     ).toBe(OFFLINE);
     expect(
-      resetPasswordErrorMessage(api(429, "over_email_send_rate_limit")),
+      resetPasswordErrorMessage(api(429, "over_request_rate_limit")),
     ).toMatch(/Too many attempts/);
   });
 
@@ -82,6 +82,10 @@ describe("resetPasswordErrorMessage", () => {
     expect(resetPasswordErrorMessage(api(400, "user_not_found"))).toBeNull();
     expect(
       resetPasswordErrorMessage(api(500, "unexpected_failure")),
+    ).toBeNull();
+    // Supabase limits emails per address, which only happens for an address with an account.
+    expect(
+      resetPasswordErrorMessage(api(429, "over_email_send_rate_limit")),
     ).toBeNull();
   });
 });

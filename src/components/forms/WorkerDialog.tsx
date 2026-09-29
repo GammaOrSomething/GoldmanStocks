@@ -78,7 +78,11 @@ function WorkerForm({
     setForm((f) => ({ ...f, [key]: value }));
 
   const save = useMutation({
-    mutationFn: () => saveWorker({ data: form }),
+    // Once it's their login the email can't change, so it isn't sent at all.
+    mutationFn: () => {
+      const { email: _email, ...rest } = form;
+      return saveWorker({ data: worker?.hasLogin ? rest : form });
+    },
     onSuccess: async () => {
       await refresh();
       toast.success(

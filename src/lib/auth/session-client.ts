@@ -5,6 +5,8 @@ import {
 
 import { supabase } from "@/lib/supabase/client";
 
+import { cameFromEmailLink } from "./access";
+
 import {
   OFFLINE,
   resetPasswordErrorMessage,
@@ -89,6 +91,12 @@ export async function requestPasswordReset(email: string): Promise<void> {
 export async function setPassword(password: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw new Error(setPasswordErrorMessage(error));
+}
+
+/** Whether this browser's session came from an invite or reset link just now (see cameFromEmailLink). */
+export async function isEmailLinkSession(): Promise<boolean> {
+  const { data } = await supabase.auth.getClaims();
+  return cameFromEmailLink(data?.claims.amr, Math.floor(Date.now() / 1000));
 }
 
 export async function signOut(): Promise<void> {

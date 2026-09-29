@@ -103,6 +103,7 @@ describe("toWorker", () => {
     language: "ET" as const,
     color: "var(--chart-1)",
     invited_at: null,
+    accepted_at: null,
     archived_at: null,
     created_at: stamp,
     updated_at: stamp,
@@ -134,6 +135,20 @@ describe("toWorker", () => {
       hasLogin: true,
       invitedAt: stamp,
     });
+    expect(
+      toWorker({ ...row, user_id: "u1", invited_at: stamp }).joinedAt,
+    ).toBeUndefined();
+  });
+
+  test("once they accept, they have joined", () => {
+    expect(
+      toWorker({
+        ...row,
+        user_id: "u1",
+        invited_at: stamp,
+        accepted_at: stamp,
+      }),
+    ).toMatchObject({ hasLogin: true, joinedAt: stamp });
   });
 });
 

@@ -15,20 +15,25 @@ export type Member = {
   name: string;
 };
 
+/** A company's invitation the signed-in person hasn't answered yet. */
+export type Invitation = { companyName: string };
+
 /**
  * The signed-in person, or null when signed out. `member` is null until they have set up a
- * company (or, from D2, accepted an invitation).
+ * company or accepted an invitation; `invitation` is one waiting for their answer.
  */
 export type Viewer = {
   userId: string;
   email: string;
   member: Member | null;
+  invitation: Invitation | null;
 } | null;
 
 const LOGIN = "/login";
 const SIGNUP = "/signup";
 const FORGOT_PASSWORD = "/forgot-password";
 const ONBOARDING = "/onboarding";
+const JOIN = "/join";
 const WORKER_APP = "/mobile";
 
 /** The pages for getting in: a signed-in member is sent on from them. */
@@ -71,6 +76,40 @@ export function safeRedirect(target: unknown, fallback = "/"): string {
   return target;
 }
 
+/**
+ * Where an emailed link leads once verified, from its type alone. The link carries no
+ * destination of its own: someone could otherwise send a victim their own reset link with a
+ * `next` of their choosing and have them carry on, signed in as the sender, wherever they liked.
+ */
+export function afterEmailLink(type: string): string {
+  if (type === "invite" || type === "recovery") return "/auth/set-password";
+  if (type === "email" || type === "signup") return ONBOARDING;
+  return "/";
+}
+
+/** How a session was started, as the login token's `amr` claim lists it. */
+type SignInMethod = { method: string; timestamp: number } | string;
+
+const EMAIL_LINK_METHODS = new Set(["invite", "recovery", "otp", "magiclink"]);
+const EMAIL_LINK_WINDOW_S = 60 * 60;
+
+/**
+ * Whether this session came from an invite or reset link within the last hour: the only
+ * sessions /auth/set-password accepts. Anyone else holding a signed-in phone could otherwise
+ * set a new password without knowing the old one.
+ */
+export function cameFromEmailLink(
+  amr: readonly SignInMethod[] | undefined,
+  nowSeconds: number,
+): boolean {
+  return (amr ?? []).some(
+    (entry) =>
+      typeof entry === "object" &&
+      EMAIL_LINK_METHODS.has(entry.method) &&
+      nowSeconds - entry.timestamp <= EMAIL_LINK_WINDOW_S,
+  );
+}
+
 /** The login page, remembering where to go afterwards. */
 export function loginHref(returnTo?: string): string {
   const target = safeRedirect(returnTo, "");
@@ -91,7 +130,9 @@ export function resolveAccess(
   // An email link finishes its own job, whatever state the account is in.
   if (pathname.startsWith("/auth/")) return null;
 
-  const { member } = viewer;
+  const { member, invitation } = viewer;
+  // Invited but not yet answered: join, or say it isn't them, before anything else.
+  if (!member && invitation) return pathname === JOIN ? null : JOIN;
   if (!member) return pathname === ONBOARDING ? null : ONBOARDING;
 
   const home = homeFor(member);
@@ -104,7 +145,7 @@ export function resolveAccess(
       ? home
       : next;
   }
-  if (pathname === ONBOARDING) return home;
+  if (pathname === ONBOARDING || pathname === JOIN) return home;
   if (member.role === "worker" && !isWorkerPage(pathname)) return home;
   return null;
 }

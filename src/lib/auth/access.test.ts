@@ -2,6 +2,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  afterEmailLink,
+  cameFromEmailLink,
   isPublicPath,
   loginHref,
   resolveAccess,
@@ -20,9 +22,15 @@ const viewer = {
   userId: "u1",
   email: "boss@example.com",
   member: member("boss"),
+  invitation: null,
 };
 const worker = { ...viewer, member: member("worker") };
 const newcomer = { ...viewer, member: null };
+const invitee = {
+  ...viewer,
+  member: null,
+  invitation: { companyName: "Alpha Gardens" },
+};
 const at = (pathname: string, searchStr = "") => ({ pathname, searchStr });
 
 describe("isPublicPath", () => {
@@ -218,5 +226,59 @@ describe("resolveAccess: password reset", () => {
   test("set-password opens for anyone; the page itself explains an expired link", () => {
     for (const who of [null, newcomer, viewer, worker])
       expect(resolveAccess(at("/auth/set-password"), who)).toBeNull();
+  });
+});
+
+describe("resolveAccess: invitations", () => {
+  test("an invitation waiting for an answer: everything leads to /join", () => {
+    for (const path of ["/", "/mobile", "/onboarding", "/login", "/clients"])
+      expect(resolveAccess(at(path), invitee)).toBe("/join");
+    expect(resolveAccess(at("/join"), invitee)).toBeNull();
+  });
+
+  test("the email links still finish their job first", () => {
+    expect(resolveAccess(at("/auth/set-password"), invitee)).toBeNull();
+  });
+
+  test("/join is only for someone with an invitation", () => {
+    expect(resolveAccess(at("/join"), newcomer)).toBe("/onboarding");
+    expect(resolveAccess(at("/join"), viewer)).toBe("/");
+    expect(resolveAccess(at("/join"), worker)).toBe("/mobile");
+    expect(resolveAccess(at("/join"), null)).toBe("/login?redirect=%2Fjoin");
+  });
+});
+
+describe("afterEmailLink", () => {
+  test("the link's type decides where it leads, never a parameter in the link", () => {
+    expect(afterEmailLink("invite")).toBe("/auth/set-password");
+    expect(afterEmailLink("recovery")).toBe("/auth/set-password");
+    expect(afterEmailLink("email")).toBe("/onboarding");
+    expect(afterEmailLink("signup")).toBe("/onboarding");
+    expect(afterEmailLink("email_change")).toBe("/");
+  });
+});
+
+describe("cameFromEmailLink", () => {
+  const now = 1_790_000_000;
+
+  test("a session an invite or reset link started in the last hour may choose a password", () => {
+    for (const method of ["invite", "recovery", "otp", "magiclink"])
+      expect(cameFromEmailLink([{ method, timestamp: now - 600 }], now)).toBe(
+        true,
+      );
+  });
+
+  test("a password sign-in, an old link, or no claim at all may not", () => {
+    expect(
+      cameFromEmailLink([{ method: "password", timestamp: now }], now),
+    ).toBe(false);
+    expect(
+      cameFromEmailLink(
+        [{ method: "recovery", timestamp: now - 2 * 3600 }],
+        now,
+      ),
+    ).toBe(false);
+    expect(cameFromEmailLink(undefined, now)).toBe(false);
+    expect(cameFromEmailLink(["recovery"], now)).toBe(false);
   });
 });

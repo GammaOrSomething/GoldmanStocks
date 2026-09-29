@@ -7,29 +7,18 @@ import { getAuthedClient, requireBoss } from "./session";
 
 const Language = z.enum(["ET", "LV", "EN"]);
 
-/**
- * Everyone in the company, archived people left out. For a boss, each login also says whether
- * it has been confirmed (`joinedAt`); `worker_logins` returns nothing to anyone else.
- */
+/** Everyone in the company, archived people left out. */
 export const listWorkers = createServerFn({ method: "GET" }).handler(
   async (): Promise<Worker[]> => {
-    const db = await getAuthedClient();
-    const [workers, logins] = await Promise.all([
-      db.from("workers").select("*").is("archived_at", null).order("name"),
-      db.rpc("worker_logins"),
-    ]);
-    if (workers.error) throw new Error(workers.error.message);
-    if (logins.error) throw new Error(logins.error.message);
-    const joinedAt = new Map(
-      (logins.data ?? []).flatMap((l) =>
-        l.confirmed_at ? [[l.worker_id, l.confirmed_at] as const] : [],
-      ),
-    );
-    return (workers.data ?? []).map((row) => {
-      const worker = toWorker(row);
-      const joined = joinedAt.get(row.id);
-      return joined ? { ...worker, joinedAt: joined } : worker;
-    });
+    const { data, error } = await (
+      await getAuthedClient()
+    )
+      .from("workers")
+      .select("*")
+      .is("archived_at", null)
+      .order("name");
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(toWorker);
   },
 );
 

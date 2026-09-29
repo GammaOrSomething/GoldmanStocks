@@ -83,6 +83,8 @@ export function toWorker(row: Row<"workers">): Worker {
     appRole: row.app_role,
     hasLogin: row.user_id !== null,
     ...(row.invited_at ? { invitedAt: row.invited_at } : {}),
+    // Linked but not accepted is an invitation still waiting for an answer.
+    ...(row.user_id && row.accepted_at ? { joinedAt: row.accepted_at } : {}),
   };
 }
 

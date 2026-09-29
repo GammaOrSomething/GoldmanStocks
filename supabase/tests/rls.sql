@@ -99,6 +99,10 @@ select tests.ok(
   (select app_role = 'boss' and email = 'anna@alpha.test' from public.workers),
   'create_company makes the caller the boss, with the email from their login'
 );
+select tests.ok(
+  (select accepted_at is not null from public.workers),
+  'the company''s creator has joined it'
+);
 select tests.throws(
   $$select public.create_company('Second Co', 'Anna')$$, '23505',
   'create_company refuses an account that already belongs to a company'
@@ -282,12 +286,58 @@ select tests.throws(
 update public.plants set photo_path = tests.id('company_a') || '/plants/linden-1.jpg'
 where id = tests.id('plant_a1');
 
--- ─── The worker's login is linked (what an invitation does, with the service role) ─────
+-- ─── Walter is invited (the server links his login), then accepts ────────────
 
 reset role;
 select tests.as_service();
 set local role service_role;
-update public.workers set user_id = tests.id('walter') where id = tests.id('worker_row_a');
+update public.workers set user_id = tests.id('walter'), invited_at = now()
+where id = tests.id('worker_row_a');
+reset role;
+
+-- Until he accepts, the link gives him nothing: being invited is not agreeing to join.
+select tests.login(tests.id('walter'));
+set local role authenticated;
+select tests.ok(
+  (select count(*) from public.companies) + (select count(*) from public.workers)
+  + (select count(*) from public.tasks) + (select count(*) from storage.objects) = 0,
+  'an invited login that has not accepted sees nothing of the company'
+);
+select tests.ok(
+  (select company_name = 'Alpha Gardens Ltd' and worker_id = tests.id('worker_row_a')
+   from public.my_invitation()),
+  'an invited login sees which company invited it'
+);
+select tests.throws(
+  $$select public.update_my_profile('LV')$$,
+  '42501', 'an invited login is no member until it accepts'
+);
+update public.workers set accepted_at = now() where id = tests.id('worker_row_a');
+reset role;
+select tests.ok(
+  (select accepted_at is null from public.workers where id = tests.id('worker_row_a')),
+  'an invited login cannot accept through the API'
+);
+
+select tests.login(tests.id('anna'));
+set local role authenticated;
+select tests.throws(
+  format($$update public.workers set accepted_at = now() where id = %L$$, tests.id('worker_row_a')),
+  '42501', 'a boss cannot accept an invitation on the worker''s behalf'
+);
+reset role;
+
+-- Accepting runs on the server, after it has checked the session is the invited login.
+select tests.as_service();
+set local role service_role;
+update public.workers set accepted_at = now() where id = tests.id('worker_row_a');
+reset role;
+select tests.login(tests.id('walter'));
+set local role authenticated;
+select tests.ok(
+  not exists (select 1 from public.my_invitation()),
+  'once accepted, no invitation is left'
+);
 reset role;
 
 -- ─── Company B sees nothing of company A ─────────────────────────────────────
@@ -592,42 +642,36 @@ select tests.throws(
   '22023', 'bump_usage refuses a kind it has no limit for'
 );
 
--- ─── Invitations: who has joined, and the invite allowance ───────────────────
--- Opening the invite link confirms the email; Walter hasn't yet, Anna has.
+-- ─── Invitations: finding an existing login, allowances, pending bosses ──────
 
 reset role;
 update auth.users set email_confirmed_at = now() where id = tests.id('anna');
+select tests.as_service();
+set local role service_role;
+select tests.ok(
+  (select confirmed and linked from public.login_for_email('  ANNA@Alpha.test '))
+  and (select not confirmed and not linked from public.login_for_email('sam@nowhere.test'))
+  and not exists (select 1 from public.login_for_email('nobody@nowhere.test')),
+  'the server finds a login by email, in any case, and whether it is confirmed and linked'
+);
+reset role;
+select tests.ok(
+  not has_function_privilege('authenticated', 'public.login_for_email(text)', 'execute'),
+  'signed-in users cannot look logins up by email'
+);
+
 select tests.login(tests.id('anna'));
 set local role authenticated;
-select tests.ok(
-  (select count(*) = 2 from public.worker_logins())
-  and (select confirmed_at is not null from public.worker_logins()
-       where worker_id = tests.id('anna_row'))
-  and (select confirmed_at is null from public.worker_logins()
-       where worker_id = tests.id('worker_row_a')),
-  'a boss sees which of the company''s logins have been confirmed'
-);
 select tests.ok(public.bump_usage('invite'), 'a boss can spend the invite allowance');
 select tests.ok(public.bump_usage('geocode'), 'a boss can spend the address-search allowance');
-
-reset role;
-select tests.login(tests.id('bella'));
-set local role authenticated;
-select tests.ok(
-  not exists (
-    select 1 from public.worker_logins()
-    where worker_id in (tests.id('anna_row'), tests.id('worker_row_a'))
-  ),
-  'another company''s boss sees none of its logins'
+select tests.throws(
+  $$insert into public.workers (name, email) values ('Casey Caps', 'Casey@Alpha.test')$$,
+  '23514', 'worker emails are stored lowercased and trimmed'
 );
 
 reset role;
 select tests.login(tests.id('walter'));
 set local role authenticated;
-select tests.ok(
-  not exists (select 1 from public.worker_logins()),
-  'a worker sees nobody''s login state'
-);
 select tests.throws(
   $$select public.bump_usage('invite')$$,
   '42501', 'a worker cannot spend the invite allowance'
@@ -636,6 +680,34 @@ select tests.throws(
   $$select public.bump_usage('geocode')$$,
   '42501', 'a worker cannot spend the address-search allowance'
 );
+
+-- Company B invites Sam as a second boss. Until Sam accepts, Bella is still the only boss.
+reset role;
+select tests.login(tests.id('bella'));
+set local role authenticated;
+with w as (
+  insert into public.workers (name, email, app_role)
+  values ('Pending Pat', 'sam@nowhere.test', 'boss') returning id
+)
+insert into tests.ids select 'pat_row', id from w;
+insert into tests.ids select 'bella_row', id from public.workers where user_id = tests.id('bella');
+reset role;
+select tests.as_service();
+set local role service_role;
+update public.workers set user_id = tests.id('sam'), invited_at = now()
+where id = tests.id('pat_row');
+reset role;
+select tests.login(tests.id('bella'));
+set local role authenticated;
+select tests.throws(
+  format($$update public.workers set app_role = 'worker' where id = %L$$, tests.id('bella_row')),
+  '23514', 'an invited boss who hasn''t accepted doesn''t count toward keeping one boss'
+);
+reset role;
+select tests.as_service();
+set local role service_role;
+update public.workers set user_id = null, invited_at = null where id = tests.id('pat_row');
+reset role;
 
 reset role;
 select tests.login(tests.id('anna'));

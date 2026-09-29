@@ -43,13 +43,15 @@ export function signUpErrorMessage(error: Refusal): string {
 }
 
 /**
- * Asking for a reset link. Only an outage or a rate limit is reported; anything else reads as
- * "sent" (null), so the form never reveals whether an email has an account.
+ * Asking for a reset link. Only an outage, or too many requests from this device, is reported;
+ * anything else reads as "sent" (null), so the form never reveals whether an email has an
+ * account. That includes Supabase's per-address email limit, which only an address with an
+ * account can hit.
  */
 export function resetPasswordErrorMessage(error: Refusal): string | null {
   if (isAuthRetryableFetchError(error)) return OFFLINE;
-  const { status } = error as Pick<AuthError, "status">;
-  return status === 429 ? TOO_MANY : null;
+  const { code } = error as Pick<AuthError, "code">;
+  return code === "over_request_rate_limit" ? TOO_MANY : null;
 }
 
 const LINK_EXPIRED = "This link has expired. Ask for a new one.";

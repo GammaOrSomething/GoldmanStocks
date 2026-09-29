@@ -78,7 +78,7 @@ export type Worker = {
   hasLogin: boolean;
   /** ISO timestamp of the last invitation email */
   invitedAt?: string;
-  /** when their login was confirmed (the invitation accepted); only a boss sees this */
+  /** when they accepted the invitation (or created the company); absent while it's pending */
   joinedAt?: string;
 };
 

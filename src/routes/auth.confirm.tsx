@@ -5,14 +5,14 @@ import { useState } from "react";
 
 import { AuthCard, FormError } from "@/components/AuthCard";
 import { Button } from "@/components/ui/button";
-import { safeRedirect } from "@/lib/auth/access";
+import { afterEmailLink } from "@/lib/auth/access";
 import { verifyEmailLink } from "@/lib/auth/session-client";
 
 // Where the emailed links land (supabase/templates/): confirming a new account, accepting an
 // invitation, and resetting a password. The last two go on to /auth/set-password.
 const LINK_TYPES = ["email", "signup", "invite", "recovery", "email_change"];
 
-type ConfirmSearch = { token_hash?: string; type?: EmailOtpType; next: string };
+type ConfirmSearch = { token_hash?: string; type?: EmailOtpType };
 
 export const Route = createFileRoute("/auth/confirm")({
   validateSearch: (search: Record<string, unknown>): ConfirmSearch => {
@@ -25,7 +25,6 @@ export const Route = createFileRoute("/auth/confirm")({
       ...(typeof type === "string" && LINK_TYPES.includes(type)
         ? { type: type as EmailOtpType }
         : {}),
-      next: safeRedirect(search["next"]),
     };
   },
   head: () => ({
@@ -46,7 +45,7 @@ const TITLES: Partial<Record<EmailOtpType, string>> = {
 };
 
 function Confirm() {
-  const { token_hash: tokenHash, type, next } = Route.useSearch();
+  const { token_hash: tokenHash, type } = Route.useSearch();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +74,8 @@ function Confirm() {
       await verifyEmailLink(tokenHash, type);
       queryClient.clear();
       router.clearCache();
-      await router.navigate({ href: next, replace: true });
+      // Where to go comes from the link's type, never from the link itself.
+      await router.navigate({ href: afterEmailLink(type), replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't confirm.");
       setBusy(false);

@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
-import { requireMember } from "@/lib/api/session";
+import { requireMember, requireUserId } from "@/lib/api/session";
 import {
+  acceptInvitation,
+  declineInvitation,
   inviteWorker as inviteWorkerImpl,
   removeAccess as removeAccessImpl,
   resendInvite as resendInviteImpl,
@@ -13,10 +15,14 @@ import {
 // the service-role client for the steps only the server may take (see src/lib/server/invites.ts).
 // The client is imported inside the handler because `@/lib/supabase/server` is server-only.
 
+async function adminClient() {
+  const { getAdminClient } = await import("@/lib/supabase/server");
+  return getAdminClient();
+}
+
 async function context(): Promise<InviteContext> {
   const { db, member } = await requireMember();
-  const { getAdminClient } = await import("@/lib/supabase/server");
-  return { db, admin: getAdminClient(), member };
+  return { db, admin: await adminClient(), member };
 }
 
 /** Email a worker an invitation to the app and link the new login to them. Boss only. */
@@ -42,3 +48,21 @@ export const removeAccess = createServerFn({ method: "POST" })
     await removeAccessImpl(await context(), workerId);
     return { id: workerId };
   });
+
+/** The signed-in person joins the company that invited them (the /join page). */
+export const acceptInvite = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const userId = await requireUserId();
+    await acceptInvitation(await adminClient(), userId);
+    return { accepted: true };
+  },
+);
+
+/** The signed-in person says the invitation isn't for them; they go on to set up their own. */
+export const declineInvite = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const userId = await requireUserId();
+    await declineInvitation(await adminClient(), userId);
+    return { declined: true };
+  },
+);

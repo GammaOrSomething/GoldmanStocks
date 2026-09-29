@@ -63,6 +63,7 @@ export type Database = {
           language: WorkerLanguage;
           color: string;
           invited_at: string | null;
+          accepted_at: string | null;
           archived_at: string | null;
           created_at: string;
           updated_at: string;
@@ -78,6 +79,7 @@ export type Database = {
           language?: WorkerLanguage;
           color?: string;
           invited_at?: string | null;
+          accepted_at?: string | null;
           archived_at?: string | null;
         };
         Update: {
@@ -89,6 +91,7 @@ export type Database = {
           language?: WorkerLanguage;
           color?: string;
           invited_at?: string | null;
+          accepted_at?: string | null;
           archived_at?: string | null;
         };
         Relationships: [];
@@ -490,9 +493,13 @@ export type Database = {
           hours: number;
         }[];
       };
-      worker_logins: {
+      my_invitation: {
         Args: Record<PropertyKey, never>;
-        Returns: { worker_id: string; confirmed_at: string | null }[];
+        Returns: { worker_id: string; company_name: string }[];
+      };
+      login_for_email: {
+        Args: { p_email: string };
+        Returns: { user_id: string; confirmed: boolean; linked: boolean }[];
       };
     };
     Enums: {

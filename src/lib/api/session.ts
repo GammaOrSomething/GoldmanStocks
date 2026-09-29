@@ -4,7 +4,12 @@ import {
 } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 
-import { loginHref, type Member, type Viewer } from "../auth/access";
+import {
+  loginHref,
+  type Invitation,
+  type Member,
+  type Viewer,
+} from "../auth/access";
 import type { Database } from "../supabase/types";
 
 type Client = SupabaseClient<Database>;
@@ -54,7 +59,8 @@ async function readSession(): Promise<Session> {
 
 /**
  * The caller's worker row and company, read with their own session: row-level security shows
- * a member only their own company, and an archived worker is no member at all.
+ * a member only their own company. An archived worker is no member at all, and nor is a login
+ * whose invitation hasn't been accepted.
  */
 async function readMember(db: Client, userId: string): Promise<Member | null> {
   const [me, company] = await Promise.all([
@@ -63,6 +69,7 @@ async function readMember(db: Client, userId: string): Promise<Member | null> {
       .select("id, company_id, app_role, name")
       .eq("user_id", userId)
       .is("archived_at", null)
+      .not("accepted_at", "is", null)
       .maybeSingle(),
     db.from("companies").select("name").maybeSingle(),
   ]);
@@ -76,6 +83,14 @@ async function readMember(db: Client, userId: string): Promise<Member | null> {
     role: me.data.app_role,
     name: me.data.name,
   };
+}
+
+/** An invitation the caller hasn't answered yet: they can't read the company, so ask the database. */
+async function readInvitation(db: Client): Promise<Invitation | null> {
+  const { data, error } = await db.rpc("my_invitation");
+  if (error) throw new Error(error.message);
+  const [pending] = data ?? [];
+  return pending ? { companyName: pending.company_name } : null;
 }
 
 async function currentSession(): Promise<Session> {
@@ -100,7 +115,12 @@ async function currentSession(): Promise<Session> {
 export async function getSessionViewer(): Promise<Viewer> {
   const session = await currentSession();
   if (!session.user) return null;
-  return { ...session.user, member: await session.member() };
+  const member = await session.member();
+  return {
+    ...session.user,
+    member,
+    invitation: member ? null : await readInvitation(session.db),
+  };
 }
 
 /**
@@ -112,6 +132,13 @@ export async function getAuthedClient(): Promise<Client> {
   const { db, user } = await currentSession();
   if (!user) throw redirect({ href: loginHref() });
   return db;
+}
+
+/** The signed-in login's id, from their verified session; a signed-out caller goes to login. */
+export async function requireUserId(): Promise<string> {
+  const { user } = await currentSession();
+  if (!user) throw redirect({ href: loginHref() });
+  return user.userId;
 }
 
 /** The signed-in member and their session; fails for someone who has no company yet. */

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { AuthCard, FormError } from "@/components/AuthCard";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useViewer } from "@/hooks/use-viewer";
 import { MIN_PASSWORD } from "@/lib/auth/errors";
-import { setPassword } from "@/lib/auth/session-client";
+import {
+  isEmailLinkSession,
+  setPassword,
+  signOut,
+} from "@/lib/auth/session-client";
 
 // Where an invitation or a password reset ends: /auth/confirm has verified the emailed link and
 // started a session, and the person now chooses a password for it.
@@ -30,6 +34,26 @@ function SetPassword() {
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Only a session an invite or reset link just started may choose a password here; anyone
+  // else holding a signed-in phone would otherwise change it without knowing the old one.
+  const [fromLink, setFromLink] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!viewer) return;
+    isEmailLinkSession().then(setFromLink, () => setFromLink(false));
+  }, [viewer]);
+
+  async function resetInstead() {
+    setBusy(true);
+    try {
+      await signOut();
+      queryClient.clear();
+      router.clearCache();
+      await router.navigate({ href: "/forgot-password", replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't sign out.");
+      setBusy(false);
+    }
+  }
 
   // Opened directly, or the link's session has ended.
   if (!viewer)
@@ -46,6 +70,29 @@ function SetPassword() {
         <Button asChild size="lg" className="mt-5 w-full">
           <Link to="/forgot-password">Send me a new link</Link>
         </Button>
+      </AuthCard>
+    );
+
+  if (fromLink === null) return <AuthCard title="One moment…" />;
+
+  if (!fromLink)
+    return (
+      <AuthCard
+        title="Change your password by email"
+        subtitle={`To choose a new password for ${viewer.email}, we'll email you a link. You'll be signed out first.`}
+      >
+        <div className="mt-5 space-y-3">
+          <FormError message={error} />
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            disabled={busy}
+            onClick={() => void resetInstead()}
+          >
+            {busy ? "Signing out…" : "Sign out and send me a link"}
+          </Button>
+        </div>
       </AuthCard>
     );
 

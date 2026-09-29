@@ -61,7 +61,11 @@ export function WorkerAccess({ worker }: { worker: Worker }) {
               : `${worker.name}'s access removed`,
       );
     },
-    onError: (error) => toast.error(error.message),
+    // The row may have changed underneath (another tab, another boss): show it as it is now.
+    onError: async (error) => {
+      toast.error(error.message);
+      await refresh();
+    },
   });
 
   const label =
