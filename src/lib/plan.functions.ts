@@ -3,7 +3,7 @@ import { requireBoss } from "@/lib/api/session";
 import { spendAllowance } from "@/lib/api/usage";
 
 import { getOpenAI } from "@/lib/server/llm.server";
-import { ExplainPlanInput, explainPlanWith } from "@/lib/server/plan";
+import { ExplainPlanInput, explainPlanOrSkip } from "@/lib/server/plan";
 
 // Server functions only: safe to import from routes (see weather.functions.ts).
 
@@ -13,6 +13,11 @@ export type { ExplainPlanInput } from "@/lib/server/plan";
 export const explainPlan = createServerFn({ method: "POST" })
   .validator(ExplainPlanInput)
   .handler(async ({ data }) => {
-    await spendAllowance(await requireBoss(), "ai_plan"); // this spends the OpenAI key
-    return explainPlanWith(getOpenAI(), data);
+    const db = await requireBoss();
+    // An empty day costs nothing; otherwise this spends the OpenAI key.
+    return explainPlanOrSkip(
+      data,
+      () => spendAllowance(db, "ai_plan"),
+      getOpenAI,
+    );
   });

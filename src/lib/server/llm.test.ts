@@ -8,7 +8,13 @@ import {
   draftOffersWith,
   MAX_ITEMS_IN_PROMPT,
 } from "./outreach";
-import { ExplainPlanInput, explainPlanWith } from "./plan";
+import {
+  EMPTY_PLAN_EXPLANATION,
+  ExplainPlanInput,
+  explainPlanOrSkip,
+  explainPlanWith,
+  isEmptyPlan,
+} from "./plan";
 
 type Call = Record<string, unknown> & {
   response_format?: Record<string, unknown>;
@@ -94,6 +100,78 @@ const opportunities: DraftOffersInput = {
     },
   ],
 };
+
+describe("isEmptyPlan", () => {
+  test("a day with jobs, or with jobs the weather skipped, is a plan", () => {
+    expect(isEmptyPlan(plan)).toBe(false);
+    // The fixture has a watering job the rain skipped: explaining that is still worth it.
+    const onlySkipped = {
+      ...plan,
+      workers: plan.workers.map((w) => ({ ...w, stops: [] })),
+    };
+    expect(isEmptyPlan(onlySkipped)).toBe(false);
+  });
+
+  test("no workers, or workers with nothing to do, is nothing to explain", () => {
+    expect(isEmptyPlan({ ...plan, workers: [] })).toBe(true);
+    expect(
+      isEmptyPlan({
+        ...plan,
+        workers: plan.workers.map((w) => ({ ...w, stops: [], skipped: [] })),
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("explainPlanOrSkip", () => {
+  test("an empty day spends no allowance and asks no model", async () => {
+    let spent = 0;
+    let asked = 0;
+    const text = await explainPlanOrSkip(
+      { ...plan, workers: [] },
+      async () => void spent++,
+      () => {
+        asked++;
+        return fakeClient(new Error("should not be called")).client;
+      },
+    );
+    expect(text).toBe(EMPTY_PLAN_EXPLANATION);
+    expect(spent).toBe(0);
+    expect(asked).toBe(0);
+  });
+
+  test("a real plan spends the allowance first, then asks the model once", async () => {
+    const order: string[] = [];
+    const { client, calls } = fakeClient({
+      choices: [{ message: { role: "assistant", content: "Liis mows." } }],
+    });
+    const text = await explainPlanOrSkip(
+      plan,
+      async () => void order.push("spend"),
+      () => {
+        order.push("client");
+        return client;
+      },
+    );
+    expect(text).toBe("Liis mows.");
+    expect(order).toEqual(["spend", "client"]);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("a spent allowance stops the call before the model is asked", async () => {
+    const { client, calls } = fakeClient(new Error("should not be called"));
+    await expect(
+      explainPlanOrSkip(
+        plan,
+        async () => {
+          throw new Error("Today's allowance for this feature is used up");
+        },
+        () => client,
+      ),
+    ).rejects.toThrow("used up");
+    expect(calls).toHaveLength(0);
+  });
+});
 
 describe("explainPlan", () => {
   test("asks the configured model and returns the text", async () => {

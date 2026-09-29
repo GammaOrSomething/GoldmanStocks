@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   canDo,
+  hasAssignedWork,
   haversineKm,
   nearestNeighbor,
   pathLength,
@@ -284,5 +285,24 @@ describe("a sample week", () => {
     const liis = byWorker.find((p) => p.workerId === t3.workerId)!;
     expect(liis.stops.some((t) => t.id === "t3")).toBe(false);
     expect(liis.skipped.some((t) => t.id === "t3")).toBe(true);
+  });
+});
+
+describe("hasAssignedWork", () => {
+  const task = tasks[0]!;
+
+  test("someone with a job, or a job the weather skipped, is a plan to review", () => {
+    expect(hasAssignedWork([{ stops: [task], skipped: [] }])).toBe(true);
+    expect(hasAssignedWork([{ stops: [], skipped: [task] }])).toBe(true);
+  });
+
+  test("nobody, or nobody with anything assigned, is no plan", () => {
+    expect(hasAssignedWork([])).toBe(false);
+    expect(
+      hasAssignedWork([
+        { stops: [], skipped: [] },
+        { stops: [], skipped: [] },
+      ]),
+    ).toBe(false);
   });
 });

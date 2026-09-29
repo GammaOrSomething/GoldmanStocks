@@ -1,6 +1,8 @@
 import type OpenAI from "openai";
 import { z } from "zod/v4";
 
+import { hasAssignedWork } from "@/lib/planner";
+
 import {
   assertNotRefused,
   fitsPrompt,
@@ -59,6 +61,29 @@ Write 3–5 plain sentences, no lists, headings or markdown. Say who goes where 
 order makes sense, call out every change the weather caused (skipped or moved jobs), and \
 flag anything the owner should check before approving: idle workers, long drives, or days \
 over 7 hours. Use only the facts in the plan; don't invent jobs, times or weather.`;
+
+/** Nobody has a job or a called-off job: nothing worth an AI call to explain. */
+export function isEmptyPlan(plan: ExplainPlanInput): boolean {
+  return !hasAssignedWork(plan.workers);
+}
+
+/** What the dialog says for an empty day, without asking the model. */
+export const EMPTY_PLAN_EXPLANATION =
+  "No one has a job assigned today, so there is no plan to explain yet.";
+
+/**
+ * The "Approve today's plan" explanation. An empty day is free; otherwise `spend` (the
+ * company's daily AI allowance) runs first, and only then is the model asked.
+ */
+export async function explainPlanOrSkip(
+  plan: ExplainPlanInput,
+  spend: () => Promise<void>,
+  client: () => OpenAI,
+): Promise<string> {
+  if (isEmptyPlan(plan)) return EMPTY_PLAN_EXPLANATION;
+  await spend();
+  return explainPlanWith(client(), plan);
+}
 
 /** Plain-language explanation of a day plan, for the "Approve today's plan" card. */
 export async function explainPlanWith(

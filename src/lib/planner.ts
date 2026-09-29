@@ -52,6 +52,19 @@ export type DayPlanResult = {
   byWorker: DayPlan[];
 };
 
+/**
+ * Whether anyone has work in a day plan, including jobs the weather called off: what makes it
+ * worth reviewing, approving and explaining. A task nobody could be assigned doesn't count.
+ */
+export function hasAssignedWork(
+  byWorker: readonly {
+    stops: readonly unknown[];
+    skipped: readonly unknown[];
+  }[],
+): boolean {
+  return byWorker.some((w) => w.stops.length > 0 || w.skipped.length > 0);
+}
+
 // ─── Geometry and routing ────────────────────────────────────────────────────
 
 type LatLng = { lat: number; lng: number };
